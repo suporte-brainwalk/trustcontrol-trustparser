@@ -21,15 +21,16 @@ log = logging.getLogger("eva.dataapi")
 MAX_QUERIES = 6
 MAX_CHARS = 12000
 _ID = r"(?:/\d+)?"
-_ROUTE = (r"/(?:me|health|stats/summary"
-          r"|tenants(?:/\d+(?:/(?:sources|destinations|allowed-ips|people|uploads))?)?"
-          r"|sources" + _ID + r"(?:/(?:metrics|unparsed))?"
-          r"|allowed-ips" + _ID +
-          r"|destinations" + _ID + r"(?:/(?:metrics|deliveries))?"
-          r"|parsers" + _ID + r"(?:/versions(?:/\d+)?)?"
-          r"|formats" + _ID +
+_SLUG = r"(?:/[a-z0-9_-]{1,80})?"
+_ROUTE = (r"/(?:me|health|stats|firewall|connectors|destination-kinds"
+          r"|tenants(?:/\d+(?:/people)?)?"
+          r"|sources" + _ID +
+          r"|allowed-ips"
+          r"|destinations" + _ID +
+          r"|parsers" + _SLUG +
           r"|studio/jobs" + _ID +
-          r"|uploads" + _ID + r")")
+          r"|uploads" + _ID +
+          r"|events" + r")")
 ALLOWED = re.compile(r"^" + _ROUTE + r"(?:\?[A-Za-z0-9_=&%.:+,\-]{0,300})?$")
 SECRET_KEY_RX = re.compile(r"(?i)(secret|senha|password|passwd|token|api_?key|credential|private_key|service_account|client_secret)")
 

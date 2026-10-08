@@ -463,9 +463,10 @@ def test_eva_cannot_touch_api_layer_or_itself():
 
 # ---------------------------------------------------------------- consulta de dados do portal (API v1, chave protegida)
 @pytest.mark.parametrize("path,ok", [
-    ("/sources?tenant_id=3", True), ("/sources/5", True), ("/sources/5/unparsed", True), ("/tenants/5/allowed-ips", True),
-    ("/destinations/2/deliveries", True), ("/parsers?kind=input", True), ("/parsers/4/versions/2", True), ("/studio/jobs/9", True),
-    ("/stats/summary", True), ("/me", True), ("/tenants/5/people", True),
+    ("/sources?tenant_id=3", True), ("/sources/5", True), ("/events?status=unparsed&source_id=5", True), ("/allowed-ips?tenant_id=5", True),
+    ("/destinations/2", True), ("/parsers?kind=input", True), ("/parsers/nginx-access-pipe", True), ("/studio/jobs/9", True),
+    ("/firewall", True), ("/events/download", False), ("/destinations/2/test", False),
+    ("/stats", True), ("/me", True), ("/tenants/5/people", True),
     ("/admin/api", False), ("/api/v1/sources", False), ("https://evil.com/x", False), ("/tenants/5/../../admin", False),
     ("/sources?q=<script>", False), ("/destinations/2/secret", False), ("sources", False), ("/openapi.json", False),
     ("/destinations/2/credentials", False),
