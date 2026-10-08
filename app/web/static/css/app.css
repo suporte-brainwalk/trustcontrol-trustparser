@@ -111,8 +111,8 @@ input.i:focus,select.i:focus{outline:2px solid rgba(157,205,23,.45);border-color
 .card .bd{padding:16px}
 .kpi{padding:16px}
 .kpi .l{font-size:12px;color:var(--muted)}
-.kpi .v{font-size:30px;font-weight:700;margin-top:6px}
-.kpi .s{font-size:12px;color:var(--muted);margin-top:4px}
+.kpi .v{font-size:30px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
+.kpi .s{font-size:12px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
 .kpi.accent{border-top:3px solid var(--green)}
 .kpi.red{border-top:3px solid var(--crit)}
 .kpi.purple{border-top:3px solid var(--kev)}
@@ -399,8 +399,9 @@ textarea.i.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px
 .spark{display:flex;align-items:flex-end;gap:2px;height:46px;margin-top:8px}
 .spark i{flex:1;background:var(--green);opacity:.8;min-height:1px;border-radius:2px 2px 0 0}
 .spark i.u{background:var(--crit)}
-.addr{display:grid;grid-template-columns:minmax(110px,max-content) 1fr;gap:4px 12px;font-size:13px}
-.addr b{font-family:ui-monospace,Menlo,Consolas,monospace}
+/* host/porta do syslog quebram linha quando não couberem, sem rolagem lateral no celular */
+.addr{display:grid;grid-template-columns:minmax(110px,max-content) minmax(0,1fr);gap:4px 12px;font-size:13px}
+.addr b{font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
 details.ev summary{cursor:pointer;list-style:none}
 details.ev summary::-webkit-details-marker{display:none}
 .trunc{max-width:640px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
