@@ -958,5 +958,107 @@
   "metadata.event_code",
   "device.hostname"
  ],
- "tests": []
+ "tests": [
+  {
+   "name": "Windows 4625: logon falho (envelope JSON do coletor)",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"System event [alertMeta@0 eventType=\\\"systemEventsLog.reported\\\" deviceName=\\\"PC-0001\\\" deviceId=\\\"00000000-0000-4000-8000-000000000001\\\" suser=\\\"CORP\\\\usuario1\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" details_profileName=\\\"ACME - Perfil Padrao\\\" details_alertType=\\\"system_events_log.event.info.added\\\" details_profileVersion=\\\"1788284786\\\" details_systemDataEventId=\\\"4625\\\" details_systemDataTimeCreated=\\\"1790945272\\\" details_systemDataOpcode=\\\"InformaÃ§Ãµes\\\" details_systemDataProviderName=\\\"Microsoft-Windows-Security-Auditing\\\" details_description=\\\"An account failed to log on.\\\" details_userName=\\\"CORP\\\\usuario1\\\" details_clientTimestamp=\\\"1790945273681\\\" details_eventXml=\\\"\\u003cEvent xmlns='http://schemas.microsoft.com/win/2004/08/events/event'\\u003e\\u003cSystem\\u003e\\u003cProvider Name='Microsoft-Windows-Security-Auditing' Guid='{54849625-5478-4994-a5ba-3e3b0328c30d}'/\\u003e\\u003cEventID\\u003e4625\\u003c/EventID\\u003e\\u003cVersion\\u003e0\\u003c/Version\\u003e\\u003cLevel\\u003e0\\u003c/Level\\u003e\\u003cTask\\u003e12544\\u003c/Task\\u003e\\u003cOpcode\\u003e0\\u003c/Opcode\\u003e\\u003cKeywords\\u003e0x8010000000000000\\u003c/Keywords\\u003e\\u003cTimeCreated SystemTime='2026-10-02T12:47:52.6682615Z'/\\u003e\\u003cEventRecordID\\u003e1336783\\u003c/EventRecordID\\u003e\\u003cCorrelation ActivityID='{ee285089-526b-0008-a850-28ee6b52dd01}'/\\u003e\\u003cExecution ProcessID='968' ThreadID='3136'/\\u003e\\u003cChannel\\u003eSecurity\\u003c/Channel\\u003e\\u003cComputer\\u003ePC-0001.acme.local\\u003c/Computer\\u003e\\u003cSecurity/\\u003e\\u003c/System\\u003e\\u003cEventData\\u003e\\u003cData Name='SubjectUserSid'\\u003eS-1-5-18\\u003c/Data\\u003e\\u003cData Name='SubjectUserName'\\u003ePC-0001$\\u003c/Data\\u003e\\u003cData Name='SubjectDomainName'\\u003eCORP\\u003c/Data\\u003e\\u003cData Name='SubjectLogonId'\\u003e0x3e7\\u003c/Data\\u003e\\u003cData Name='TargetUserSid'\\u003eS-1-0-0\\u003c/Data\\u003e\\u003cData Name='TargetUserName'\\u003eusuario2\\u003c/Data\\u003e\\u003cData Name='TargetDomainName'\\u003eCORP\\u003c/Data\\u003e\\u003cData Name='Status'\\u003e0xc000006d\\u003c/Data\\u003e\\u003cData Name='FailureReason'\\u003e%%2313\\u003c/Data\\u003e\\u003cData Name='SubStatus'\\u003e0xc000006a\\u003c/Data\\u003e\\u003cData Name='LogonType'\\u003e2\\u003c/Data\\u003e\\u003cData Name='LogonProcessName'\\u003eUser32 \\u003c/Data\\u003e\\u003cData Name='AuthenticationPackageName'\\u003eNegotiate\\u003c/Data\\u003e\\u003cData Name='WorkstationName'\\u003ePC-0001\\u003c/Data\\u003e\\u003cData Name='TransmittedServices'\\u003e-\\u003c/Data\\u003e\\u003cData Name='LmPackageName'\\u003e-\\u003c/Data\\u003e\\u003cData Name='KeyLength'\\u003e0\\u003c/Data\\u003e\\u003cData Name='ProcessId'\\u003e0xa1c\\u003c/Data\\u003e\\u003cData Name='ProcessName'\\u003eC:\\\\Windows\\\\System32\\\\svchost.exe\\u003c/Data\\u003e\\u003cData Name='IpAddress'\\u003e127.0.0.1\\u003c/Data\\u003e\\u003cData Name='IpPort'\\u003e0\\u003c/Data\\u003e\\u003c/EventData\\u003e\\u003c/Event\\u003e\\\" details_throttledCount=\\\"0\\\" details_systemDataComputer=\\\"PC-0001.acme.local\\\" details_profileId=\\\"100000001\\\" details_systemDataRecordId=\\\"1336783\\\" details_hostIpAddress=\\\"10.10.1.104/24 10.10.2.1/24\\\" details_systemDataProcessId=\\\"968\\\" details_systemDataChannel=\\\"Security\\\" details_systemDataLevel=\\\"InformaÃ§Ãµes\\\" details_userPrincipalName=\\\"usuario1@acme.com.br\\\" message=\\\"Event ID: \\\"4625\\\", event source: \\\"Microsoft-Windows-Security-Auditing\\\". Description: \\\"An account failed to log on.\\\".\\\"]\",\"priority\":38}",
+   "expect": {
+    "time": "2026-10-02T12:47:53.681Z",
+    "class_uid": 3002,
+    "status": "Failure",
+    "user.name": "usuario2",
+    "user.domain": "CORP",
+    "logon_type_id": 2,
+    "status_detail": "0xc000006a",
+    "device.hostname": "PC-0001.acme.local",
+    "device.ips": [
+     "10.10.1.104",
+     "10.10.2.1"
+    ],
+    "device.org.name": "ACME & FILHOS LTDA",
+    "observer.hostname": "collector01.acme.local",
+    "metadata.event_code": "4625"
+   }
+  },
+  {
+   "name": "Windows 4720: conta criada",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"System event [alertMeta@0 eventType=\\\"systemEventsLog.reported\\\" deviceName=\\\"PC-0002\\\" deviceId=\\\"00000000-0000-4000-8000-000000000002\\\" suser=\\\"CORP\\\\usuario3\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" details_profileName=\\\"ACME - Perfil Padrao\\\" details_alertType=\\\"system_events_log.event.info.added\\\" details_profileVersion=\\\"1788284786\\\" details_systemDataEventId=\\\"4720\\\" details_systemDataTimeCreated=\\\"1790946257\\\" details_systemDataOpcode=\\\"InformaÃ§Ãµes\\\" details_systemDataProviderName=\\\"Microsoft-Windows-Security-Auditing\\\" details_description=\\\"A user account was created\\\" details_userName=\\\"CORP\\\\usuario3\\\" details_clientTimestamp=\\\"1790946258508\\\" details_eventXml=\\\"\\u003cEvent xmlns='http://schemas.microsoft.com/win/2004/08/events/event'\\u003e\\u003cSystem\\u003e\\u003cProvider Name='Microsoft-Windows-Security-Auditing' Guid='{54849625-5478-4994-a5ba-3e3b0328c30d}'/\\u003e\\u003cEventID\\u003e4720\\u003c/EventID\\u003e\\u003cVersion\\u003e0\\u003c/Version\\u003e\\u003cLevel\\u003e0\\u003c/Level\\u003e\\u003cTask\\u003e13824\\u003c/Task\\u003e\\u003cOpcode\\u003e0\\u003c/Opcode\\u003e\\u003cKeywords\\u003e0x8020000000000000\\u003c/Keywords\\u003e\\u003cTimeCreated SystemTime='2026-10-02T13:04:17.4880638Z'/\\u003e\\u003cEventRecordID\\u003e577238\\u003c/EventRecordID\\u003e\\u003cCorrelation ActivityID='{4b8ea0a7-51b3-0002-2aa8-8e4bb351dd01}'/\\u003e\\u003cExecution ProcessID='1196' ThreadID='18740'/\\u003e\\u003cChannel\\u003eSecurity\\u003c/Channel\\u003e\\u003cComputer\\u003ePC-0002.acme.local\\u003c/Computer\\u003e\\u003cSecurity/\\u003e\\u003c/System\\u003e\\u003cEventData\\u003e\\u003cData Name='TargetUserName'\\u003etmp_usuario4\\u003c/Data\\u003e\\u003cData Name='TargetDomainName'\\u003ePC-0002\\u003c/Data\\u003e\\u003cData Name='TargetSid'\\u003eS-1-5-21-1111111111-2222222222-3333333333-1023\\u003c/Data\\u003e\\u003cData Name='SubjectUserSid'\\u003eS-1-5-18\\u003c/Data\\u003e\\u003cData Name='SubjectUserName'\\u003ePC-0002$\\u003c/Data\\u003e\\u003cData Name='SubjectDomainName'\\u003eCORP\\u003c/Data\\u003e\\u003cData Name='SubjectLogonId'\\u003e0x3e7\\u003c/Data\\u003e\\u003cData Name='PrivilegeList'\\u003e-\\u003c/Data\\u003e\\u003cData Name='SamAccountName'\\u003etmp_usuario4\\u003c/Data\\u003e\\u003cData Name='DisplayName'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='UserPrincipalName'\\u003e-\\u003c/Data\\u003e\\u003cData Name='HomeDirectory'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='HomePath'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='ScriptPath'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='ProfilePath'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='UserWorkstations'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='PasswordLastSet'\\u003e%%1794\\u003c/Data\\u003e\\u003cData Name='AccountExpires'\\u003e%%1794\\u003c/Data\\u003e\\u003cData Name='PrimaryGroupId'\\u003e513\\u003c/Data\\u003e\\u003cData Name='AllowedToDelegateTo'\\u003e-\\u003c/Data\\u003e\\u003cData Name='OldUacValue'\\u003e0x0\\u003c/Data\\u003e\\u003cData Name='NewUacValue'\\u003e0x15\\u003c/Data\\u003e\\u003cData Name='UserAccountControl'\\u003e \\t\\t%%2080 \\t\\t%%2082 \\t\\t%%2084\\u003c/Data\\u003e\\u003cData Name='UserParameters'\\u003e%%1793\\u003c/Data\\u003e\\u003cData Name='SidHistory'\\u003e-\\u003c/Data\\u003e\\u003cData Name='LogonHours'\\u003e%%1797\\u003c/Data\\u003e\\u003c/EventData\\u003e\\u003c/Event\\u003e\\\" details_throttledCount=\\\"0\\\" details_systemDataComputer=\\\"PC-0002.acme.local\\\" details_profileId=\\\"100000001\\\" details_systemDataRecordId=\\\"577238\\\" details_hostIpAddress=\\\"10.10.3.22/24\\\" details_systemDataProcessId=\\\"1196\\\" details_systemDataChannel=\\\"Security\\\" details_systemDataLevel=\\\"InformaÃ§Ãµes\\\" details_userPrincipalName=\\\"usuario3@acme.com.br\\\" message=\\\"Event ID: \\\"4720\\\", event source: \\\"Microsoft-Windows-Security-Auditing\\\". Description: \\\"A user account was created\\\".\\\"]\",\"priority\":38}",
+   "expect": {
+    "class_uid": 3001,
+    "activity_id": 1,
+    "user.name": "tmp_usuario4",
+    "user.uid": "S-1-5-21-1111111111-2222222222-3333333333-1023",
+    "actor.user.name": "PC-0002$",
+    "metadata.uid": "577238"
+   }
+  },
+  {
+   "name": "Windows 4728: membro adicionado a grupo global (warning)",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"System event [alertMeta@0 eventType=\\\"systemEventsLog.reported\\\" deviceName=\\\"PC-0002\\\" deviceId=\\\"00000000-0000-4000-8000-000000000002\\\" suser=\\\"CORP\\\\usuario3\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" details_profileName=\\\"ACME - Perfil Padrao\\\" details_alertType=\\\"system_events_log.event.warning.added\\\" details_profileVersion=\\\"1788284786\\\" details_systemDataEventId=\\\"4728\\\" details_systemDataTimeCreated=\\\"1790946257\\\" details_systemDataOpcode=\\\"InformaÃ§Ãµes\\\" details_systemDataProviderName=\\\"Microsoft-Windows-Security-Auditing\\\" details_description=\\\"A member was added to a security-enabled global group\\\" details_userName=\\\"CORP\\\\usuario3\\\" details_clientTimestamp=\\\"1790946258498\\\" details_eventXml=\\\"\\u003cEvent xmlns='http://schemas.microsoft.com/win/2004/08/events/event'\\u003e\\u003cSystem\\u003e\\u003cProvider Name='Microsoft-Windows-Security-Auditing' Guid='{54849625-5478-4994-a5ba-3e3b0328c30d}'/\\u003e\\u003cEventID\\u003e4728\\u003c/EventID\\u003e\\u003cVersion\\u003e0\\u003c/Version\\u003e\\u003cLevel\\u003e0\\u003c/Level\\u003e\\u003cTask\\u003e13826\\u003c/Task\\u003e\\u003cOpcode\\u003e0\\u003c/Opcode\\u003e\\u003cKeywords\\u003e0x8020000000000000\\u003c/Keywords\\u003e\\u003cTimeCreated SystemTime='2026-10-02T13:04:17.4873453Z'/\\u003e\\u003cEventRecordID\\u003e577237\\u003c/EventRecordID\\u003e\\u003cCorrelation ActivityID='{4b8ea0a7-51b3-0002-2aa8-8e4bb351dd01}'/\\u003e\\u003cExecution ProcessID='1196' ThreadID='18740'/\\u003e\\u003cChannel\\u003eSecurity\\u003c/Channel\\u003e\\u003cComputer\\u003ePC-0002.acme.local\\u003c/Computer\\u003e\\u003cSecurity/\\u003e\\u003c/System\\u003e\\u003cEventData\\u003e\\u003cData Name='MemberName'\\u003e-\\u003c/Data\\u003e\\u003cData Name='MemberSid'\\u003eS-1-5-21-1111111111-2222222222-3333333333-1023\\u003c/Data\\u003e\\u003cData Name='TargetUserName'\\u003eNone\\u003c/Data\\u003e\\u003cData Name='TargetDomainName'\\u003ePC-0002\\u003c/Data\\u003e\\u003cData Name='TargetSid'\\u003eS-1-5-21-1111111111-2222222222-3333333333-513\\u003c/Data\\u003e\\u003cData Name='SubjectUserSid'\\u003eS-1-5-18\\u003c/Data\\u003e\\u003cData Name='SubjectUserName'\\u003ePC-0002$\\u003c/Data\\u003e\\u003cData Name='SubjectDomainName'\\u003eCORP\\u003c/Data\\u003e\\u003cData Name='SubjectLogonId'\\u003e0x3e7\\u003c/Data\\u003e\\u003cData Name='PrivilegeList'\\u003e-\\u003c/Data\\u003e\\u003c/EventData\\u003e\\u003c/Event\\u003e\\\" details_throttledCount=\\\"0\\\" details_systemDataComputer=\\\"PC-0002.acme.local\\\" details_profileId=\\\"100000001\\\" details_systemDataRecordId=\\\"577237\\\" details_hostIpAddress=\\\"10.10.3.22/24\\\" details_systemDataProcessId=\\\"1196\\\" details_systemDataChannel=\\\"Security\\\" details_systemDataLevel=\\\"InformaÃ§Ãµes\\\" details_userPrincipalName=\\\"usuario3@acme.com.br\\\" message=\\\"Event ID: \\\"4728\\\", event source: \\\"Microsoft-Windows-Security-Auditing\\\". Description: \\\"A member was added to a security-enabled global group\\\".\\\"]\",\"priority\":36}",
+   "expect": {
+    "class_uid": 3006,
+    "activity_id": 3,
+    "group.name": "None",
+    "user.uid": "S-1-5-21-1111111111-2222222222-3333333333-1023",
+    "severity_id": 3,
+    "metadata.event_subtype": "system_events_log.event.warning.added"
+   }
+  },
+  {
+   "name": "Controle de aplicativo: application_start bloqueado",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"Application Control event [alertMeta@0 eventType=\\\"applicationControl.blocked\\\" deviceName=\\\"PC-0003\\\" deviceId=\\\"00000000-0000-4000-8000-000000000003\\\" suser=\\\"CORP\\\\usuario5\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" details_profileName=\\\"ACME - Perfil Padrao\\\" details_targetFileVersion=\\\"2.0.4899.9\\\" details_targetHash=\\\"c666b84c4d77c01e54c7172f54093521466ba0f14303409d1563e63f4365c9e6\\\" details_targetVersionCompanyName=\\\"Famatech Corp.\\\" details_parentPath=\\\"C:\\\\Windows\\\\SysWOW64\\\\runonce.exe\\\" details_targetFileDescription=\\\"Radmin VPN\\\" details_clientTimestamp=\\\"1791017132835\\\" details_throttledCount=\\\"0\\\" details_targetProductName=\\\"Radmin VPN\\\" details_hostIpAddress=\\\"10.10.4.56/24 10.26.0.10/8\\\" details_parentPrevalence=\\\"50\\\" details_ruleName=\\\"Radmin VPN\\\" details_targetReputation=\\\"150\\\" details_ruleId=\\\"11111111-2222-4333-8444-555555555555\\\" details_ruleEvent=\\\"application_start\\\" details_userPrincipalName=\\\"usuario5@acme.com.br\\\" details_parentReputation=\\\"0\\\" details_targetCommandLine=\\\"\\\"C:\\\\Program Files (x86)\\\\Radmin VPN\\\\RvRvpnGui.exe\\\" /minimized\\\" details_targetPrevalence=\\\"40\\\" details_alertType=\\\"application_control.application_start.block\\\" details_profileVersion=\\\"1788284786\\\" details_targetPath=\\\"C:\\\\Program Files (x86)\\\\Radmin VPN\\\\RvRvpnGui.exe\\\" details_targetCopyrightText=\\\"Copyright Â© 2017-2025 Famatech Corp. and its licensors. All rights reserved.\\\" details_userName=\\\"CORP\\\\usuario5\\\" details_targetSignatureSignerName=\\\"Famatech Corp.\\\" details_parentCommandLine=\\\"C:\\\\WINDOWS\\\\SysWOW64\\\\runonce.exe /Run6432\\\" details_profileId=\\\"100000001\\\" details_targetProductVersion=\\\"2.0.4899.9\\\" message=\\\"Application Control blocked application_start of \\\"Radmin VPN\\\" based on rule \\\"Radmin VPN\\\"\\\"]\",\"priority\":38}",
+   "expect": {
+    "class_uid": 1007,
+    "activity_id": 1,
+    "disposition": "Blocked",
+    "process.file.name": "RvRvpnGui.exe",
+    "rule.name": "Radmin VPN",
+    "actor.process.name": "runonce.exe",
+    "actor.user.name": "usuario5",
+    "actor.user.email_addr": "usuario5@acme.com.br",
+    "policy.name": "ACME - Perfil Padrao"
+   }
+  },
+  {
+   "name": "Controle de conteúdo web: categoria bloqueada",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"Web Content Control event [alertMeta@0 eventType=\\\"webContentControl.blocked\\\" deviceName=\\\"PC-0004\\\" deviceId=\\\"00000000-0000-4000-8000-000000000004\\\" suser=\\\"CORP\\\\usuario6\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" details_profileName=\\\"ACME - Perfil Padrao\\\" details_reason=\\\"WF_Category\\\" details_process=\\\"msedgewebview2.exe\\\" details_alertType=\\\"online_safety.category_page.block\\\" details_profileVersion=\\\"1788284786\\\" details_userName=\\\"CORP\\\\usuario6\\\" details_clientTimestamp=\\\"1790945482444\\\" details_url=\\\"images-eds-ssl.xboxlive.com\\\" details_throttledCount=\\\"0\\\" details_profileId=\\\"100000001\\\" details_hostIpAddress=\\\"10.10.5.65/24\\\" details_categories=\\\"games\\\" details_userPrincipalName=\\\"usuario6@acme.com.br\\\" message=\\\"Web content control blocked webpage due to category \\\"games\\\" being disallowed\\\"]\",\"priority\":36}",
+   "expect": {
+    "class_uid": 4002,
+    "http_request.url.url_string": "images-eds-ssl.xboxlive.com",
+    "http_request.url.categories": [
+     "games"
+    ],
+    "actor.process.name": "msedgewebview2.exe",
+    "src_endpoint.ip": "10.10.5.65",
+    "status_detail": "WF_Category"
+   }
+  },
+  {
+   "name": "Controle de dispositivo: USB bloqueado (cabeçalho syslog, sem envelope)",
+   "input": "<36>2026-10-02T15:48:01Z connector01 fsconnector: Device Control event [alertMeta@0 eventType=\"deviceControl.blocked\" deviceName=\"PC-0005\" deviceId=\"00000000-0000-4000-8000-000000000005\" suser=\"CORP\\usuario8\" accountName=\"ACME & FILHOS LTDA\" details_profileName=\"ACME - Perfil Padrao\" details_appliedRule=\"USB Mass Storage Devices\" details_alertType=\"device_control.device.blocked\" details_throttledCount=\"0\" details_profileId=\"100000001\" details_profileVersion=\"1788284786\" details_hostIpAddress=\"10.10.7.22/24\" details_userName=\"CORP\\usuario8\" details_clientTimestamp=\"1790956081890\" details_deviceId=\"USBSTOR\\DISK&VEN_GENERAL&PROD_UDISK&REV_5.00\\6&3762D6FD&0&_&0\" details_deviceName=\"General UDisk USB Device\" details_userPrincipalName=\"usuario8@acme.com.br\" message=\"The device \"General UDisk USB Device\" was blocked based on the following rule: \"USB Mass Storage Devices\"\"]",
+   "expect": {
+    "class_uid": 2004,
+    "metadata.parser_case": "controle-de-dispositivo",
+    "rule.name": "USB Mass Storage Devices",
+    "peripheral_device.name": "General UDisk USB Device",
+    "device.hostname": "PC-0005",
+    "observer.hostname": "connector01"
+   }
+  },
+  {
+   "name": "Malware em quarentena (fileScanning.quarantined)",
+   "input": "{\"facility\":4,\"hostname\":\"collector01.acme.local\",\"message\":\"File Scanning event [alertMeta@0 eventType=\\\"fileScanning.quarantined\\\" deviceName=\\\"PC-0006\\\" deviceId=\\\"00000000-0000-4000-8000-000000000006\\\" suser=\\\"CORP\\\\usuario9\\\" accountName=\\\"ACME \\u0026 FILHOS LTDA\\\" infectedObject=\\\"C:\\\\Program Files\\\\WindowsApps\\\\WuhanNetPowerTechnologyCo.37362034EACDD_3.7.23.0_x64__63m8b6nby1dvp\\\\NetPowerPlayer\\\\VideoPlayComRegister.exe\\\" malwareName=\\\"Backdoor.BDS/Backdoor.Gen\\\" action=\\\"quarantined\\\" details_profileName=\\\"ACME - Perfil Lojas\\\" details_quarantineId=\\\"1000000001\\\" details_alertType=\\\"on_disinfect.file_infection.quarantine\\\" details_profileVersion=\\\"1788284786\\\" details_infectionName=\\\"Backdoor.BDS/Backdoor.Gen\\\" details_userName=\\\"CORP\\\\usuario9\\\" details_clientTimestamp=\\\"1790961313356\\\" details_sha1=\\\"d0674ecebc87b3d660ab4edc2491babbc02f16bf\\\" details_path=\\\"C:\\\\Program Files\\\\WindowsApps\\\\WuhanNetPowerTechnologyCo.37362034EACDD_3.7.23.0_x64__63m8b6nby1dvp\\\\NetPowerPlayer\\\\VideoPlayComRegister.exe\\\" details_throttledCount=\\\"0\\\" details_infectionType=\\\"malware\\\" details_profileId=\\\"100000002\\\" details_hostIpAddress=\\\"10.10.8.17/24\\\" details_fileScanningType=\\\"fileInfection\\\" details_rebootRequiredToDelete=\\\"true\\\" details_userPrincipalName=\\\"usuario9@acme.com.br\\\" message=\\\"\\\"malware\\\" was detected on accessing \\\"\\\" and it was quarantined\\\"]\",\"priority\":36}",
+   "expect": {
+    "class_uid": 2004,
+    "metadata.parser_case": "malware",
+    "disposition": "Quarantined",
+    "malware.0.name": "Backdoor.BDS/Backdoor.Gen",
+    "malware.0.classification": "malware",
+    "file.name": "VideoPlayComRegister.exe",
+    "severity_id": 4,
+    "policy.name": "ACME - Perfil Lojas"
+   }
+  }
+ ],
+ "basis": "real"
 }

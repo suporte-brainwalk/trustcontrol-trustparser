@@ -281,5 +281,69 @@
   "time",
   "http_response.code"
  ],
- "tests": []
+ "tests": [
+  {
+   "name": "200 via app iOS com X-Forwarded-For IPv6 (amostra real anonimizada)",
+   "input": "2026-10-05T11:38:35.575Z 05/Oct/2026:08:38:35 -0300 | 198.51.100.107 | - | \"api.acme.com.br\" | \"GET /usuarios-contas/10001 HTTP/1.1\" | 200 | 1103 | \"-\" | \"IOS-ACMEAPP\" | \"2001:db8:70ac:11bb::1, 203.0.113.13\" | SSLVerify: \"NONE\" - 200 | SSL_DN: \"-\" | - - - \"TLSv1.3/TLS_AES_256_GCM_SHA384\" - \"-\" ",
+   "expect": {
+    "time": "2026-10-05T11:38:35.000Z",
+    "metadata.logged_time": "2026-10-05T11:38:35.575Z",
+    "class_uid": 4002,
+    "activity_id": 3,
+    "http_response.code": 200,
+    "http_response.length": 1103,
+    "src_endpoint.ip": "2001:db8:70ac:11bb::1",
+    "proxy_endpoint.ip": "198.51.100.107",
+    "http_request.url.url_string": "https://api.acme.com.br/usuarios-contas/10001",
+    "http_request.user_agent": "IOS-ACMEAPP",
+    "tls.version": "TLSv1.3",
+    "status": "Success",
+    "severity_id": 1
+   }
+  },
+  {
+   "name": "200 via app Android (amostra real anonimizada)",
+   "input": "2026-10-05T11:38:35.826Z 05/Oct/2026:08:38:35 -0300 | 198.51.100.12 | - | \"api.acme.com.br\" | \"GET /usuarios-contas HTTP/1.1\" | 200 | 665 | \"-\" | \"ANDROID-ACMEAPP\" | \"203.0.113.211, 203.0.113.208\" | SSLVerify: \"NONE\" - 200 | SSL_DN: \"-\" | - - - \"TLSv1.3/TLS_AES_256_GCM_SHA384\" - \"-\" ",
+   "expect": {
+    "src_endpoint.ip": "203.0.113.211",
+    "http_request.x_forwarded_for": [
+     "203.0.113.211",
+     "203.0.113.208"
+    ],
+    "http_request.url.path": "/usuarios-contas",
+    "http_response.code": 200
+   }
+  },
+  {
+   "name": "403 negado (amostra real anonimizada)",
+   "input": "2026-10-05T11:42:34.161Z 05/Oct/2026:08:42:33 -0300 | 198.51.100.101 | - | \"api.acme.com.br\" | \"GET /usuarios-contas/10002 HTTP/1.1\" | 403 | 86 | \"-\" | \"ANDROID-ACMEAPP\" | \"2001:db8:858c:7f5e::2, 203.0.113.45\" | SSLVerify: \"NONE\" - 403 | SSL_DN: \"-\" | - - - \"TLSv1.3/TLS_AES_256_GCM_SHA384\" - \"-\" ",
+   "expect": {
+    "http_response.code": 403,
+    "status": "Failure",
+    "severity_id": 2,
+    "metadata.event_code": "403"
+   }
+  },
+  {
+   "name": "401 não autorizado (amostra real anonimizada)",
+   "input": "2026-10-05T11:43:12.502Z 05/Oct/2026:08:43:12 -0300 | 198.51.100.10 | - | \"api.acme.com.br\" | \"GET /usuarios-contas/10003 HTTP/1.1\" | 401 | 152 | \"-\" | \"ANDROID-ACMEAPP\" | \"203.0.113.118, 203.0.113.75\" | SSLVerify: \"NONE\" - 401 | SSL_DN: \"-\" | - - - \"TLSv1.3/TLS_AES_256_GCM_SHA384\" - \"-\" ",
+   "expect": {
+    "http_response.code": 401,
+    "status": "Failure",
+    "src_endpoint.ip": "203.0.113.118"
+   }
+  },
+  {
+   "name": "com cabeçalho syslog, sem data do coletor e com query string (variante da amostra)",
+   "input": "<190>Oct  5 08:43:25 proxy01 nginx: 05/Oct/2026:08:43:25 -0300 | 198.51.100.99 | - | \"api.acme.com.br\" | \"GET /usuarios-contas?pagina=2 HTTP/1.1\" | 200 | 627 | \"-\" | \"ANDROID-ACMEAPP\" | \"-\" | SSLVerify: \"NONE\" - 200 | SSL_DN: \"-\" | - - - \"TLSv1.3/TLS_AES_256_GCM_SHA384\" - \"-\" ",
+   "expect": {
+    "time": "2026-10-05T11:43:25.000Z",
+    "observer.hostname": "proxy01",
+    "src_endpoint.ip": "198.51.100.99",
+    "http_request.url.query_string": "pagina=2",
+    "http_response.length": 627
+   }
+  }
+ ],
+ "basis": "real"
 }
