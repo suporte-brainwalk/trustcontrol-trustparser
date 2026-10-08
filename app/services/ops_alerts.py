@@ -29,7 +29,7 @@ def _send(kind: str, subject: str, dedupe: str, **ctx):
         log.warning("aviso operacional sem destinatários: %s", subject)
         return 0
     try:
-        return emails.send_system(to, f"[Trust Parser] {subject}", "email/ops_alert.html", dedupe, kind=kind, subject=subject,
+        return emails.send_system(to, f"[Trust Parser] {subject}", "email/ops_alert.html", dedupe, kind=kind,
                                   base_url=emails.base_url(), **ctx)
     except Exception:  # noqa: BLE001 — aviso nunca derruba o worker
         log.exception("falha ao enviar aviso operacional")

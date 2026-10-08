@@ -150,6 +150,8 @@ def _connect(key, cfg: dict):
 def send_syslog(dest_key, cfg: dict, lines: list[str], severities: list[int] | None = None):
     """Envia em uma conexão persistente (TCP/TLS: uma mensagem por linha, terminada em LF; UDP: um datagrama por mensagem)."""
     tr = cfg.get("transport", "tcp")
+    # a conexão persistente é amarrada ao destino E à configuração: mudou host/porta/transporte/CA, abre outra
+    dest_key = (dest_key, cfg.get("host"), str(cfg.get("port")), tr, hash(cfg.get("ca_pem") or ""))
     msgs = [syslog_frame(ln.replace("\n", " ").replace("\r", " "), cfg, (severities or [6] * len(lines))[i]) for i, ln in enumerate(lines)]
     for attempt in (1, 2):
         s = _sockets.get(dest_key)
@@ -170,12 +172,13 @@ def send_syslog(dest_key, cfg: dict, lines: list[str], severities: list[int] | N
 
 
 def close(dest_key):
-    s = _sockets.pop(dest_key, None)
-    if s is not None:
-        try:
-            s.close()
-        except OSError:
-            pass
+    for k in [k for k in _sockets if k == dest_key or (isinstance(k, tuple) and k[0] == dest_key)]:
+        s = _sockets.pop(k, None)
+        if s is not None:
+            try:
+                s.close()
+            except OSError:
+                pass
 
 
 # ------------------------------------------------------------------------------------------------ Google SecOps

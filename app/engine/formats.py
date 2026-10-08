@@ -257,9 +257,14 @@ def to_wazuh(ev: dict, raw: str = "", ctx: dict | None = None) -> dict:
     """JSON para o Wazuh. Tudo sob a chave "tp" (evita colisão com campos reservados do Wazuh 4.x: srcip, user, url, action…);
     o decoder trustparser (XML 4.x / YAML 5.x, baixados na tela) extrai o JSON depois do cabeçalho syslog."""
     ctx = ctx or {}
-    return {"tp": paths.prune({
-        "integration": "trustparser", "tenant": ctx.get("tenant"), "source": ctx.get("source"), "parser": ctx.get("parser"),
-        "time": ev.get("time"), "vendor": _g(ev, "metadata.product.vendor_name"), "product": _g(ev, "metadata.product.name"),
+    top = paths.prune({"srcip": _g(ev, "src_endpoint.ip"), "dstip": _g(ev, "dst_endpoint.ip"),
+                       "srcport": str(_g(ev, "src_endpoint.port")) if _g(ev, "src_endpoint.port") is not None else None,
+                       "dstport": str(_g(ev, "dst_endpoint.port")) if _g(ev, "dst_endpoint.port") is not None else None,
+                       "srcuser": _first(_g(ev, "actor.user.full_name"), _g(ev, "actor.user.name")), "dstuser": _g(ev, "user.name"),
+                       "url": _g(ev, "http_request.url.url_string")})
+    return {**top, "tp": paths.prune({
+        "product": "trustparser", "integration": "trustparser", "tenant": ctx.get("tenant"), "source": ctx.get("source"), "parser": ctx.get("parser"),
+        "time": ev.get("time"), "source_vendor": _g(ev, "metadata.product.vendor_name"), "source_product": _g(ev, "metadata.product.name"),
         "event_code": _g(ev, "metadata.event_code"), "class": ev.get("class_name"), "class_uid": ev.get("class_uid"),
         "activity": ev.get("activity_name"), "severity": ev.get("severity"), "severity_id": ev.get("severity_id"),
         "status": ev.get("status"), "disposition": ev.get("disposition"), "message": ev.get("message"),

@@ -18,23 +18,23 @@ log = logging.getLogger("eva.pipeline")
 FOLDER_OK = "EVA-Processados"
 FOLDER_BAD = "EVA-Ignorados"
 FRIENDLY_PAGE = {"/auth/login": "Tela de entrada (login)", "/admin/": "Painel do administrador", "/t/": "Painel do cliente",
-                 "/admin/tenants": "Tenants", "/admin/sources": "Fontes", "/admin/allowed-ips": "IPs liberados (syslog)",
-                 "/admin/destinations": "Destinos", "/admin/parsers": "Parsers", "/admin/studio": "Estúdio IA",
-                 "/admin/uploads": "Uploads", "/admin/unparsed": "Não reconhecidos", "/admin/eva": "EVA", "/admin/api": "API",
-                 "/admin/audit": "Auditoria", "/admin/settings": "Configurações", "/admin/help": "Ajuda", "/auth/account": "Minha conta"}
+                 "/admin/tenants": "Tenants", "/admin/fontes": "Fontes", "/admin/firewall": "IPs liberados (syslog)",
+                 "/admin/destinos": "Destinos", "/admin/parsers": "Parsers", "/admin/estudio": "Estúdio IA",
+                 "/admin/uploads": "Uploads", "/admin/nao-reconhecidos": "Não reconhecidos", "/admin/eva": "EVA", "/admin/api": "API",
+                 "/admin/auditoria": "Auditoria", "/admin/configuracoes": "Configurações", "/admin/ajuda": "Ajuda", "/auth/account": "Minha conta"}
 
 # telas de exemplo que o suporte pode anexar numa resposta: chave -> (sessão, caminho, legenda)
 SUPPORT_PAGES = {
     "painel": ("admin", "/admin/", "Painel do administrador"), "tenants": ("admin", "/admin/tenants", "Lista de tenants"),
     "tenant_detalhe": ("admin", "/admin/tenants/{tenant}", "Detalhe de um tenant"),
-    "fontes": ("admin", "/admin/sources", "Fontes"), "fonte_detalhe": ("admin", "/admin/sources/{source}", "Detalhe de uma fonte"),
-    "ips_liberados": ("admin", "/admin/allowed-ips", "Syslog · IPs liberados"),
-    "destinos": ("admin", "/admin/destinations", "Destinos"), "destino_detalhe": ("admin", "/admin/destinations/{destination}", "Detalhe de um destino"),
-    "parsers": ("admin", "/admin/parsers", "Parsers"), "estudio": ("admin", "/admin/studio", "Estúdio IA"),
-    "uploads": ("admin", "/admin/uploads", "Uploads e downloads"), "nao_reconhecidos": ("admin", "/admin/unparsed", "Não reconhecidos"),
+    "fontes": ("admin", "/admin/fontes", "Fontes"), "fonte_detalhe": ("admin", "/admin/fontes/{source}", "Detalhe de uma fonte"),
+    "ips_liberados": ("admin", "/admin/firewall", "Syslog · IPs liberados"),
+    "destinos": ("admin", "/admin/destinos", "Destinos"), "destino_detalhe": ("admin", "/admin/destinos/{destination}", "Detalhe de um destino"),
+    "parsers": ("admin", "/admin/parsers", "Parsers"), "estudio": ("admin", "/admin/estudio", "Estúdio IA"),
+    "uploads": ("admin", "/admin/uploads", "Uploads e downloads"), "nao_reconhecidos": ("admin", "/admin/nao-reconhecidos", "Não reconhecidos"),
     "eva": ("admin", "/admin/eva", "EVA · pessoas autorizadas"), "api_chaves": ("admin", "/admin/api", "Sistema · API (chaves de acesso)"),
-    "auditoria": ("admin", "/admin/audit", "Auditoria"), "configuracoes": ("admin", "/admin/settings", "Configurações"),
-    "ajuda": ("admin", "/admin/help", "Ajuda"), "minha_conta": ("admin", "/auth/account", "Minha conta"),
+    "auditoria": ("admin", "/admin/auditoria", "Auditoria"), "configuracoes": ("admin", "/admin/configuracoes", "Configurações"),
+    "ajuda": ("admin", "/admin/ajuda", "Ajuda"), "minha_conta": ("admin", "/auth/account", "Minha conta"),
     "cliente_painel": ("gestor", "/t/", "Área do cliente · Visão geral"),
 }
 

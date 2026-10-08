@@ -1,0 +1,45 @@
+# RASCUNHO — Wazuh 5.x (motor novo, YAML no Indexer Content Manager). Não validado num manager 5.x real.
+# No 5.x o manager não recebe syslog direto: use rsyslog/agente lendo o JSON do Trust Parser (ver LEIA-ME.md).
+name: decoder/trustparser/0
+enabled: true
+parents:
+  - decoder/integrations/0
+metadata:
+  title: Trust Parser
+  description: Eventos normalizados pelo Trust Parser (JSON com tp.* e campos estáticos) mapeados para o WCS.
+  author: Trust Control
+  date: 2026-10-08
+check: $_tmp_json.tp.product == 'trustparser'
+normalize:
+  - map:
+      - event.kind: event
+      - event.action: $_tmp_json.tp.class
+      - event.code: $_tmp_json.tp.event_code
+      - event.severity: $_tmp_json.tp.severity_id
+      - observer.vendor: $_tmp_json.tp.source_vendor
+      - observer.product: $_tmp_json.tp.source_product
+      - source.ip: $_tmp_json.srcip
+      - destination.ip: $_tmp_json.dstip
+      - user.name: $_tmp_json.srcuser
+      - host.name: $_tmp_json.tp.host
+      - url.original: $_tmp_json.url
+      - message: $_tmp_json.tp.message
+  - check: $_tmp_json.tp.status == 'Failure'
+    map:
+      - event.outcome: failure
+---
+# Regra Sigma (rascunho) — falha de autenticação
+enabled: true
+status: experimental
+level: low
+metadata:
+  title: Trust Parser - falha de autenticação
+  author: Trust Control
+  date: "2026-10-08"
+logsource:
+  product: "Trust Parser"
+detection:
+  condition: selection
+  selection:
+    event.action: Authentication
+    event.outcome: failure

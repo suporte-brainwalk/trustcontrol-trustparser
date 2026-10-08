@@ -20,10 +20,10 @@ PYTEST_MARK = "not mail and not live and not perf"
 ARTIFACT_RX = re.compile(r"(?i)&lt;Macro|Undefined|jinja2|Traceback")
 # Telas verificadas em toda alteração (antes/depois). Página que já não existia antes (404 nas duas versões) não é regressão,
 # então a lista pode citar telas que o Trust Parser ainda vai ganhar. Manter alinhada a app/web/admin.py e app/web/tenant.py.
-ADMIN_PAGES = ["/admin/", "/admin/tenants", "/admin/tenants/{tenant}", "/admin/sources", "/admin/sources/{source}", "/admin/allowed-ips",
-               "/admin/destinations", "/admin/destinations/{destination}", "/admin/parsers", "/admin/studio", "/admin/uploads",
-               "/admin/unparsed", "/admin/eva", "/admin/api", "/admin/audit", "/admin/settings", "/admin/help", "/auth/account"]
-TENANT_PAGES = ["/t/", "/t/sources", "/t/destinations", "/t/uploads", "/t/team"]
+ADMIN_PAGES = ["/admin/", "/admin/tenants", "/admin/tenants/{tenant}", "/admin/fontes", "/admin/fontes/{source}", "/admin/firewall",
+               "/admin/destinos", "/admin/destinos/{destination}", "/admin/parsers", "/admin/estudio", "/admin/uploads",
+               "/admin/nao-reconhecidos", "/admin/eva", "/admin/api", "/admin/auditoria", "/admin/configuracoes", "/admin/ajuda", "/auth/account"]
+TENANT_PAGES = ["/t/", "/t/fontes", "/t/destinos", "/t/uploads", "/t/pessoas"]
 EMAIL_PAGES: dict[str, str] = {}  # pré-visualizações de e-mail (chave -> caminho), quando o Trust Parser tiver
 GMAIL_LIMIT = 102 * 1024
 # instâncias e testes nunca usam IA, e-mail real nem a chave de IA de produção

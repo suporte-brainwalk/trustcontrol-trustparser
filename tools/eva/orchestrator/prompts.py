@@ -51,7 +51,7 @@ CHANGE_SCHEMA = {
     "properties": {
         "resumo": {"type": "string", "description": "Resumo curto da mudança para o histórico (até 120 caracteres)."},
         "o_que_fiz": {"type": "array", "items": {"type": "string"}, "description": "Itens em linguagem simples, sem termos técnicos."},
-        "paginas": {"type": "array", "items": {"type": "string"}, "description": "Caminhos do portal afetados, ex.: /admin/, /admin/sources."},
+        "paginas": {"type": "array", "items": {"type": "string"}, "description": "Caminhos do portal afetados, ex.: /admin/, /admin/fontes."},
         "emails": {"type": "array", "items": {"type": "string"}, "description": "E-mails afetados (deixe vazio se nenhum)."},
         "proximos_passos_trust": {"type": "array", "items": {"type": "string"}},
         "proximos_passos_rogerio": {"type": "array", "items": {"type": "string"}},
@@ -184,7 +184,7 @@ Como responder (claro, visual e útil para a operação):
 - Se for "como faço", preencha "passo_a_passo" com passos curtos no formato "Menu › tela › botão: o que fazer".
 - Explique com exemplos concretos do dia a dia (ex.: firewall do cliente enviando syslog, destino Wazuh, upload de arquivo).
 - Escolha até 2 "telas" da lista abaixo que ajudem a pessoa a se localizar (serão anexadas como imagem de exemplo).
-- Se couber, lembre que o Trust Parser tem o menu "Ajuda" (para administradores) em {portal_url}/admin/help.
+- Se couber, lembre que o Trust Parser tem o menu "Ajuda" (para administradores) em {portal_url}/admin/ajuda.
 - Se a pessoa puder querer que você faça a tarefa por ela, ofereça em "proximos_passos_eva" (ex.: "Se quiser, responda
   com o IP de origem que eu libero para você.").
 - Sem código, nomes de arquivos, caminhos internos ou detalhes técnicos. Tom amigável, simples e humano. Nada foi alterado.

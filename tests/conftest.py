@@ -35,30 +35,31 @@ def app():
     from app.config import TestConfig
     TestConfig.DATABASE_URL = TEST_URL
     TestConfig.SECRET_KEY = "test-secret-key-" + "x" * 32
+    import base64
+    TestConfig.SECRETS_KEY = base64.b64encode(b"k" * 32).decode()
     TestConfig.AI_ENABLED = os.environ.get("AI_ENABLED_TESTS", "0") == "1"
     application = create_app(TestConfig)
     yield application
     os.environ["DATABASE_URL"] = BASE_URL
 
 
-TABLES = ["api_idempotency", "api_usage_daily", "api_keys", "alert_items", "alerts", "deliveries", "vulnerability_products", "vulnerabilities", "source_seen", "source_checks",
-          "source_checks_daily", "sources", "tenant_assets", "recipients", "magic_links", "audit_log", "users", "tenants",
-          "products", "vendors", "newsletters", "settings", "jarbas_attachments", "jarbas_messages", "jarbas_requests", "jarbas_threads"]
+TABLES = ["api_idempotency", "api_usage_daily", "api_keys", "event_deliveries", "events", "uploads", "studio_jobs", "metrics_minute",
+          "destinations", "allowed_ips", "sources", "deliveries", "magic_links", "audit_log", "users", "tenants", "settings",
+          "eva_attachments", "eva_messages", "eva_requests", "eva_threads"]
 
 
 @pytest.fixture(autouse=True)
 def clean_db(app):
     from app import db
-    from app.cli import seed_catalog
     from app.web.limiter import limiter
     with app.app_context():
         db.Session.remove()
         with db.engine.begin() as c:
             c.execute(text("truncate " + ", ".join(TABLES) + " restart identity cascade"))
-            # whitelist do Jarbas: volta ao estado da implantação (os dois donos), sem o que algum teste incluiu
-            c.execute(text("delete from jarbas_whitelist where added_by <> 'implantação'"))
-            c.execute(text("update jarbas_whitelist set active = true, role = 'owner'"))
-        seed_catalog()
+            c.execute(text("delete from eva_whitelist"))
+        from app.services import catalog, eva_admin
+        catalog.seed()
+        eva_admin.ensure_initial()
         from app.services import settings
         settings.set_("require_mfa_admin", False)
         db.Session.commit()
@@ -104,16 +105,11 @@ class F:
         from app import db
         return db.Session
 
-    def tenant(self, name="Cliente A", flash_min="high", daily=True, all_vendors=False, status="active", products=()):
-        from app.models import Product, Tenant, TenantAsset, Vendor
-        from sqlalchemy import select
+    def tenant(self, name="Cliente A", status="active"):
+        from app.models import Tenant
         s = self.s()
-        t = Tenant(name=name, flash_min=flash_min, daily_newsletter=daily, all_vendors=all_vendors, status=status)
+        t = Tenant(name=name, status=status)
         s.add(t)
-        s.flush()
-        for vname, pname in products:
-            p = s.execute(select(Product).join(Vendor).where(Vendor.name == vname, Product.name == pname)).scalar_one()
-            s.add(TenantAsset(tenant_id=t.id, product_id=p.id, version="1.0"))
         s.commit()
         return t
 
@@ -128,30 +124,12 @@ class F:
         s.commit()
         return u
 
-    def recipient(self, tenant, email):
-        from app.models import Recipient
-        s = self.s()
-        r = Recipient(tenant_id=tenant.id, name=email.split("@")[0], email=email.lower())
-        s.add(r)
-        s.commit()
-        return r
-
-    def vendor_id(self, name):
-        from app.models import Vendor
-        from sqlalchemy import select
-        return self.s().execute(select(Vendor.id).where(Vendor.name == name)).scalar_one()
-
-    def vuln(self, key="CVE-2026-0001", vendor="Palo Alto Networks", title="PAN-OS: buffer overflow in GlobalProtect", severity="high",
-             cvss=8.1, kev=False, cpes=(), description="", enriched=True, ai_status="pending"):
-        from app.db import utcnow
-        from app.models import Vulnerability
-        s = self.s()
-        v = Vulnerability(vuln_key=key, cve_ids=[key] if key.startswith("CVE-") else [], vendor_id=self.vendor_id(vendor), title_en=title,
-                          description_en=description or title, severity=severity, cvss=cvss, kev=kev, cpes=list(cpes),
-                          enriched_at=utcnow() if enriched else None, ai_status=ai_status, url="https://example.org/adv")
-        s.add(v)
-        s.commit()
-        return v
+    def api_key(self, perms, tenant=None, owner="rogerio.crispim@brainwalk.com.br"):
+        from app.services import api_keys
+        k, secret = api_keys.create(name="teste", owner_email=owner, tenant_id=tenant.id if tenant else None, permissions=perms,
+                                    allowed_ips=["127.0.0.1/32"], created_by="teste")
+        self.s().commit()
+        return {"Authorization": f"Bearer {secret}", "X-Real-IP": "127.0.0.1"}
 
 
 @pytest.fixture

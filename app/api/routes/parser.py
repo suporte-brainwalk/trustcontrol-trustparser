@@ -240,7 +240,7 @@ class ParserDetail(ParserOut):
     spec: dict | None = Field(None, description="Spec da versão publicada.")
 
 
-class ParserQuery(Query):
+class ParserQuery(PageQuery):
     kind: Literal["input", "output"] | None = None
 
 

@@ -64,17 +64,8 @@ def _passes(d: Destination, ev: Event) -> bool:
     return True
 
 
-_source_cache: dict = {}
-
-
 def _source(sid):
-    if sid is None:
-        return None
-    s = _source_cache.get(sid)
-    if s is None or time.monotonic() - s[1] > 20:
-        obj = Session.get(Source, sid)
-        _source_cache[sid] = s = (obj, time.monotonic())
-    return s[0]
+    return Session.get(Source, sid) if sid is not None else None  # identity map da sessão já evita consultas repetidas no lote
 
 
 def process_received(limit: int = PARSE_BATCH) -> int:

@@ -1,0 +1,15 @@
+<!--
+  Trust Parser → Wazuh 4.x (testado com o formato enviado pelo Trust Parser; validar no manager com wazuh-logtest).
+  Copiar para /var/ossec/etc/decoders/trustparser_decoders.xml e reiniciar o wazuh-manager.
+  O Trust Parser envia syslog RFC 3164 com a tag "trustparser:" seguida de um JSON. Com cabeçalho syslog, o decoder
+  JSON nativo do Wazuh não roda — por isso este decoder pai (program_name) + filho (JSON_Decoder depois do pai).
+  Campos: srcip, dstip, srcport, dstport, srcuser, dstuser, url (estáticos do Wazuh) e tp.* (Trust Parser).
+-->
+<decoder name="trustparser">
+  <program_name>^trustparser$</program_name>
+</decoder>
+
+<decoder name="trustparser-json">
+  <parent>trustparser</parent>
+  <plugin_decoder offset="after_parent">JSON_Decoder</plugin_decoder>
+</decoder>

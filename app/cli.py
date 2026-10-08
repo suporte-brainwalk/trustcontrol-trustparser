@@ -20,6 +20,8 @@ def register_cli(app):
         r = catalog.seed()
         if Session.execute(select(Tenant.id)).first() is None:
             Session.add(Tenant(name="Trust Control", segment="Interno", internal=True))
+        from .services import eva_admin
+        eva_admin.ensure_initial()
         audit.log("system.seed", json.dumps(r))
         Session.commit()
         click.echo(f"parsers/formatos criados: {r['created']} · atualizados: {r['updated']}")
@@ -146,6 +148,15 @@ def register_cli(app):
                 emails.send_magic_link(u, token, "invite" if u.status == "invited" else "login")
             Session.commit()
         click.echo(f"convite {'enviado' if send else 'criado'}: {email}")
+
+    @app.cli.command("api-chave-eva")
+    @click.option("--rotacionar", "rotate", is_flag=True, default=False)
+    def api_chave_eva(rotate):
+        """Mesmo que eva-key (nome usado pelo orquestrador da EVA)."""
+        from .services import api_keys
+        k, secret = api_keys.ensure_eva_key(rotate=rotate)
+        Session.commit()
+        click.echo(secret or f"chave já existe (prefixo {k.prefix}); use --rotacionar para trocar o segredo")
 
     @app.cli.command("eva-key")
     @click.option("--rotate", is_flag=True, default=False)
