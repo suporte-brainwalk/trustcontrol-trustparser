@@ -131,6 +131,7 @@ class Job:
         raw = open(os.path.join(self.dir, "mensagem.eml"), "rb").read()
         self.inc = inbox.parse(req["details"].get("uid", ""), raw)
         self.inc.image_names = req["details"].get("images", [])
+        self.inc.image_info = req["details"].get("image_info", {})
         self.thread = dict(store.thread(req["thread_id"]))
         self.channel = "api" if (req["details"] or {}).get("channel") == "api" else "email"
         self.wl = store.whitelist()

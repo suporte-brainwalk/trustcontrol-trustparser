@@ -258,13 +258,35 @@ def save_request_files(base_dir: str, inc: Incoming) -> dict:
         fh.write(inc.raw)
     with open(os.path.join(base_dir, "pedido.txt"), "w", encoding="utf-8") as fh:
         fh.write(inc.text)
-    names = []
+    names, info = [], {}
     for name, data in inc.images:
         with open(os.path.join(base_dir, name), "wb") as fh:
             fh.write(data)
         names.append(name)
+        info[name] = describe_image(base_dir, name)
     os.chmod(base_dir, 0o755)
-    return {"images": names, "other_attachments": inc.other_attachments}
+    return {"images": names, "image_info": info, "other_attachments": inc.other_attachments}
+
+
+def describe_image(base_dir: str, name: str) -> str:
+    """Descrição em texto da imagem (o serviço de IA não recebe imagens): formato, tamanho, transparência e, se não for
+    PNG, uma cópia convertida para PNG ao lado (para o agente usar o arquivo sem precisar abri-lo)."""
+    path = os.path.join(base_dir, name)
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            fmt, (w, h), mode = im.format, im.size, im.mode
+            transp = "sim" if (mode in ("RGBA", "LA") or "transparency" in im.info) else "não"
+            frames = getattr(im, "n_frames", 1)
+            desc = f"{fmt}, {w}x{h} px, modo {mode}, fundo transparente: {transp}" + (f", {frames} quadros (animada)" if frames > 1 else "")
+            if fmt != "PNG":
+                png = os.path.splitext(name)[0] + ".convertida.png"
+                im.seek(0)
+                im.convert("RGBA").save(os.path.join(base_dir, png))
+                desc += f"; cópia em PNG (com transparência preservada): /work/pedido/{png}"
+            return desc
+    except Exception as e:  # noqa: BLE001
+        return f"não foi possível ler a imagem ({type(e).__name__})"
 
 
 def build_api_message(*, sender: str, name: str, mailbox: str, cc: list[str], subject: str, text: str, message_id: str,

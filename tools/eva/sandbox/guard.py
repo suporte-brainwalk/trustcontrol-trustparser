@@ -29,6 +29,9 @@ def main():
     ti = ev.get("tool_input") or {}
     if tool in SAFE_TOOLS:
         sys.exit(0)
+    if tool == "Read" and str(ti.get("file_path", "")).lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico")):
+        deny("imagens não podem ser abertas (o serviço de IA não aceita imagens). Use a descrição da imagem que está no pedido "
+             "e trabalhe com o arquivo pelo caminho (copiar, mover, referenciar no código).")
     if tool in READ_TOOLS:
         target = ti.get("file_path") or ti.get("path") or ti.get("notebook_path") or REPO_ROOT
         if not target.startswith("/"):
