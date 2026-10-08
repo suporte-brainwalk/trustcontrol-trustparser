@@ -32,6 +32,32 @@ def register_cli(app):
         from .worker import run
         run(app)
 
+    @app.cli.command("parse-loop")
+    def parse_loop():
+        """Processo extra de parsing (o worker também parseia; vários processos dividem a fila com SKIP LOCKED)."""
+        import signal
+        import time
+        from . import db
+        from .engine import pipeline
+        stop = {"v": False}
+        signal.signal(signal.SIGTERM, lambda *_: stop.update(v=True))
+        last = time.monotonic()
+        while not stop["v"]:
+            try:
+                n = pipeline.process_received()
+                if time.monotonic() - last > 30:
+                    pipeline.metrics.flush()
+                    db.Session.commit()
+                    last = time.monotonic()
+            except Exception:  # noqa: BLE001
+                db.Session.rollback()
+                n = 0
+                time.sleep(2)
+            finally:
+                db.Session.remove()
+            if not n:
+                time.sleep(1.0)
+
     @app.cli.command("fw-export")
     def fw_export():
         """Estado desejado do firewall do syslog (JSON) — lido pelo trustparser-fw no host."""

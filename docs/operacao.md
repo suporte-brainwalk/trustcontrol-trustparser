@@ -7,7 +7,7 @@ Repositório: github.com/suporte-brainwalk/trustcontrol-trustparser (alias SSH `
 
 | Container | Papel | Limite RAM |
 |---|---|---|
-| `parser-app` | Flask (tela + API) e worker (parsing, envio, conectores, Estúdio IA, expurgo) — supervisord | 1,5 GB |
+| `parser-app` | Flask (tela + API), worker (envio, conectores, Estúdio IA, expurgo) e 2 processos extras de parsing — supervisord. Medido: ~3.650 eventos/s (50 mil linhas em 13,7 s) | 1,5 GB |
 | `parser-ingest` | receptor syslog: 6514/TCP TLS, 514/TCP e 514/UDP (1514 no container) | 512 MB |
 | `parser-db` | PostgreSQL 18 (`/srv/trustparser/postgres/data`) | — |
 | `eva-orchestrator` / `eva-egress` | EVA (suporte por IA) — ver `docs/eva.md` | 1,5 GB / 256 MB |
