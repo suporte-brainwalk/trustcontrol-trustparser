@@ -45,3 +45,14 @@ webencodings==0.6.1
 Werkzeug==3.1.8
 wrapt==2.4.1
 WTForms==3.2.2
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.0
+google-auth==2.61.0
+pyasn1==0.6.4
+pyasn1-modules==0.4.2
+requests==2.34.2
+urllib3==2.7.0
+charset-normalizer==3.5.1
+openpyxl==3.1.5
+et-xmlfile==2.0.0

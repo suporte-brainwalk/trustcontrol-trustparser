@@ -9,7 +9,7 @@ from .registry import ROUTES
 from .schemas import Problem
 
 REF = "#/components/schemas/{model}"
-SUPPORT_EMAIL = "jarbas@trustcontrol.nuvem.tec.br"  # suporte por e-mail: dúvidas e pedidos vão para o Jarbas
+SUPPORT_EMAIL = "eva-trustparser@trustcontrol.nuvem.tec.br"  # suporte por e-mail: dúvidas e pedidos vão para a EVA
 ERRORS = {400: "Parâmetros inválidos", 401: "Chave ausente, inválida, revogada ou expirada",
           403: "Permissão insuficiente ou IP não autorizado", 404: "Não encontrado (inclui recurso de outro tenant)",
           429: "Limite de requisições da chave excedido"}
@@ -18,26 +18,18 @@ WRITE_ERRORS = {400: "Corpo ou parâmetros inválidos", 401: ERRORS[401], 403: "
                 412: "If-Match diferente do ETag atual: o recurso mudou desde a sua leitura",
                 415: "Corpo precisa ser application/json", 422: "Regra de negócio (mensagem igual à da tela do portal)",
                 429: "Limite de requisições ou de alterações por minuto da chave"}
-DESCRIPTION = """API do **Trust Parser** (Trust Parser): leitura e administração.
+DESCRIPTION = """API do **Trust Parser**: parsing de logs e eventos de segurança, com as mesmas regras da tela.
 
-**Autenticação:** cabeçalho `Authorization: Bearer tpk_live_…` com uma chave criada em *Administração → API* no portal.
-Cada chave tem **escopo** (global ou um tenant) e **permissões** por tipo de dado; recursos de outro tenant respondem `404`.
+**Autenticação:** cabeçalho `Authorization: Bearer tpk_live_…` com uma chave criada em *Sistema → API* no portal.
+Cada chave tem **escopo** (global ou um tenant) e **permissões** por área; recursos de outro tenant respondem `404`.
 
-**Paginação:** listas devolvem `{"data": [...], "next_cursor": ...}`; envie `cursor=<next_cursor>` para a próxima página
-(`limit` até 200). **Sincronização incremental:** `updated_since` (ISO-8601).
+**O que dá para fazer:** tenants e pessoas; fontes (syslog, upload, conectores de API) e **IPs liberados no firewall do syslog**;
+destinos de saída (Google SecOps, Wazuh, QRadar, syslog, webhook) com credenciais **só de escrita**; parsers e formatos
+(versões, publicação); **parsing avulso** (`POST /parse`); uploads e downloads; eventos do buffer (2 h); indicadores; Estúdio IA.
 
-**Cache:** respostas trazem `ETag`; envie `If-None-Match` para receber `304` quando nada mudou.
-
-**Limites:** por chave (`RateLimit-*` nas respostas; `429` com `Retry-After`). **Erros:** `application/problem+json` (RFC 9457).
-
-**Administração (escrita):** `POST`, `PATCH` e `DELETE` com as mesmas regras da tela do portal. Exigem uma permissão
-`…:gerenciar` (ou `jarbas:…`), chave com lista de IPs de origem e respeitam **10 alterações por minuto por chave**.
-- `?dry_run=true` valida e mostra o resultado **sem gravar nada e sem enviar e-mail**;
-- `Idempotency-Key` (POST): repetir a mesma chamada devolve o mesmo resultado, sem duplicar (24 h);
-- `If-Match: <ETag do GET>` (PATCH/DELETE): devolve `412` se alguém alterou o recurso nesse meio-tempo;
-- toda alteração entra na Auditoria do portal com a chave como autora.
-
-Acesso somente a partir do Brasil. Datas em UTC (ISO-8601). Títulos de vulnerabilidades no idioma original do fabricante."""
+**Paginação:** `{"data": [...], "next_cursor": ...}`; envie `cursor=<next_cursor>` (`limit` até 200).
+**Escrita:** `?dry_run=true` simula sem gravar; `Idempotency-Key` em POST; `If-Match` em PATCH; 10 alterações/min por chave;
+tudo entra na Auditoria. **Erros:** `application/problem+json` (RFC 9457). Acesso somente a partir do Brasil. Datas em UTC."""
 
 
 def _query_params(model) -> list[dict]:

@@ -1,0 +1,15 @@
+[Unit]
+Description=Trust Parser - firewall do syslog (IPs liberados na tela)
+Before=docker.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/root/trustcontrol-trustparser/deploy/host/trustparser-fw.sh init
+ExecStart=/root/trustcontrol-trustparser/deploy/host/trustparser-fw.sh loop
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
