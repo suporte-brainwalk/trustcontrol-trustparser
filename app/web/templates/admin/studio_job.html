@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}Estúdio · {{ job.title }}{% endblock %}{% block crumb %}Estúdio IA · pedido #{{ job.id }}{% endblock %}{% block heading %}{{ job.title }}{% endblock %}
+{% block title %}Estúdio · {{ job.title }}{% endblock %}{% block crumb %}EVA · Estúdio IA · pedido #{{ job.id }}{% endblock %}{% block heading %}{{ job.title }}{% endblock %}
 {% block content %}
 {% if job.status in ('queued', 'running') %}<div class="testmode">⏳ <div>{{ 'Na fila' if job.status == 'queued' else 'Gerando' }}… leva de 1 a 5 minutos. <a href="">atualizar</a></div></div>{% endif %}
 {% if job.status == 'failed' %}<div class="testmode alert-err">⚠ <div><b>Falhou:</b> {{ job.error }}</div></div>{% endif %}

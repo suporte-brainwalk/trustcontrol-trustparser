@@ -8,7 +8,7 @@
 <link rel="icon" href="{{ url_for('static', filename='brand/favicon.png') }}">
 <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=13">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=14">
 </head>
 <body>
 {% block body %}
@@ -30,9 +30,9 @@
       <a class="nav {{ 'on' if nav == 'dests' }}" href="{{ url_for('admin.destinations') }}"><span class="ic">📤</span>Destinos de saída{% if nav_counts and nav_counts.dest_err %}<span class="cnt">{{ nav_counts.dest_err }}</span>{% endif %}</a>
       <div class="grp">Parsing</div>
       <a class="nav {{ 'on' if nav == 'parsers' }}" href="{{ url_for('admin.parsers') }}"><span class="ic">⚙</span>Parsers e formatos</a>
-      <a class="nav {{ 'on' if nav == 'studio' }}" href="{{ url_for('admin.studio') }}"><span class="ic">✨</span>Estúdio IA{% if nav_counts and nav_counts.studio %}<span class="cnt">{{ nav_counts.studio }}</span>{% endif %}</a>
       <div class="grp">Sistema</div>
       {% if has_endpoint('eva.page') %}<a class="nav {{ 'on' if nav == 'eva' }}" href="{{ url_for('eva.page') }}"><span class="ic">🤖</span>EVA</a>{% endif %}
+      <a class="nav sub {{ 'on' if nav == 'studio' }}" href="{{ url_for('admin.studio') }}"><span class="ic">↳</span>Estúdio IA{% if nav_counts and nav_counts.studio %}<span class="cnt">{{ nav_counts.studio }}</span>{% endif %}</a>
       <a class="nav {{ 'on' if nav == 'api' }}" href="{{ url_for('admin.api_keys_page') }}"><span class="ic">🔑</span>API</a>
       <a class="nav {{ 'on' if nav == 'audit' }}" href="{{ url_for('admin.audit_view') }}"><span class="ic">🧾</span>Auditoria</a>
       <a class="nav {{ 'on' if nav == 'config' }}" href="{{ url_for('admin.config') }}"><span class="ic">⚙</span>Configurações</a>
