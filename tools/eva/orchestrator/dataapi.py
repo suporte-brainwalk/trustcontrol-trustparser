@@ -29,8 +29,7 @@ _ROUTE = (r"/(?:me|health|stats|firewall|connectors|destination-kinds"
           r"|destinations" + _ID +
           r"|parsers" + _SLUG +
           r"|studio/jobs" + _ID +
-          r"|uploads" + _ID +
-          r"|events" + r")")
+          r"|uploads" + _ID + r")")  # sem /events: linhas de log de clientes nunca vão para a IA
 ALLOWED = re.compile(r"^" + _ROUTE + r"(?:\?[A-Za-z0-9_=&%.:+,\-]{0,300})?$")
 SECRET_KEY_RX = re.compile(r"(?i)(secret|senha|password|passwd|token|api_?key|credential|private_key|service_account|client_secret)")
 
