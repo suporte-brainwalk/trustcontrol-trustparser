@@ -24,7 +24,7 @@ def budget_left() -> float:
     return float(current_app.config.get("AI_BUDGET_USD") or 0) - float(settings.get("ai_spend_usd") or 0)
 
 
-def chat(messages: list[dict], *, max_tokens: int = 16000, temperature: float = 0.1, json_mode: bool = True) -> tuple[str, dict]:
+def chat(messages: list[dict], *, max_tokens: int = 32000, temperature: float = 0.1, json_mode: bool = True) -> tuple[str, dict]:
     """Devolve (texto, uso={cost, prompt_tokens, completion_tokens, model}). Gasto acumulado em settings.ai_spend_usd."""
     key = current_app.config.get("OPENROUTER_API_KEY")
     if not key or not current_app.config.get("AI_ENABLED", True):
@@ -33,7 +33,8 @@ def chat(messages: list[dict], *, max_tokens: int = 16000, temperature: float = 
         raise AIError("Teto de gasto de IA atingido (AI_BUDGET_USD). Ajuste o limite para continuar.")
     model = current_app.config.get("AI_PRIMARY_MODEL")
     body = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
-            "provider": {"zdr": True, "data_collection": "deny"}, "usage": {"include": True}}
+            "provider": {"zdr": True, "data_collection": "deny"}, "usage": {"include": True},
+            "reasoning": {"max_tokens": 6000}}  # raciocínio limitado: sobra espaço para o JSON completo
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     last = None
@@ -57,9 +58,17 @@ def chat(messages: list[dict], *, max_tokens: int = 16000, temperature: float = 
         cost = float(usage.get("cost") or 0)
         settings.set_("ai_spend_usd", round(float(settings.get("ai_spend_usd") or 0) + cost, 6))
         try:
-            text = data["choices"][0]["message"]["content"] or ""
+            choice = data["choices"][0]
+            text = choice["message"]["content"] or ""
         except (KeyError, IndexError) as e:
             raise AIError("resposta vazia do serviço de IA") from e
+        if choice.get("finish_reason") == "length" and attempt < 2:
+            body["max_tokens"] = min(64000, int(body["max_tokens"] * 1.5))
+            last = "resposta cortada pelo limite de tamanho"
+            continue
+        if not text.strip() and attempt < 2:
+            last = "resposta vazia"
+            continue
         return text, {"cost": cost, "prompt_tokens": usage.get("prompt_tokens"), "completion_tokens": usage.get("completion_tokens"),
                       "model": data.get("model", model)}
     raise AIError(last or "serviço de IA indisponível")

@@ -112,7 +112,8 @@ def _snap(d: Destination) -> dict:
 
 
 def create_destination(tenant: Tenant, *, name, kind, format=None, config=None, secrets=None, filters=None,
-                       include_unparsed=False, active=True, by="") -> Outcome:
+                       include_unparsed=False, active=True, by="", defer_secrets=False) -> Outcome:
+    """defer_secrets=True (EVA): cria sem credenciais e INATIVO — um administrador cadastra as credenciais na tela e ativa."""
     name = clean(name)
     if not name:
         raise ServiceError("Informe o nome do destino.")
@@ -121,10 +122,10 @@ def create_destination(tenant: Tenant, *, name, kind, format=None, config=None, 
     cfg = _clean_config(kind, config or {})
     fmt = _check_format(kind, format)
     d = Destination(tenant_id=tenant.id, name=name, kind=kind, format=fmt, config=cfg, filters=_filters(tenant.id, filters),
-                    include_unparsed=bool(include_unparsed), active=bool(active))
+                    include_unparsed=bool(include_unparsed), active=bool(active) and not defer_secrets)
     Session.add(d)
     Session.flush()
-    _set_secrets(d, secrets or {}, by, creating=True)
+    _set_secrets(d, secrets or {}, by, creating=not defer_secrets)
     return Outcome(message=f"Destino “{d.name}” criado.", obj=d, tenant_id=tenant.id,
                    audit=[("destination.created", d.name, {"kind": kind, "format": fmt})])
 

@@ -59,7 +59,7 @@ def _validate(tenant: Tenant, *, name, transport, parser_id, match_hostname, unp
 
 def create_source(tenant: Tenant, *, name, transport="syslog", parser_id=None, match_hostname="", unparsed_policy="keep",
                   note="", connector="", connector_config=None, secrets=None, interval_s=None, silence_alert_minutes=0,
-                  by="") -> Outcome:
+                  by="", defer_secrets=False) -> Outcome:
     name = _validate(tenant, name=name, transport=transport, parser_id=parser_id, match_hostname=match_hostname,
                      unparsed_policy=unparsed_policy)
     s = Source(tenant_id=tenant.id, name=name, transport=transport, parser_id=int(parser_id) if parser_id else None,
@@ -68,12 +68,14 @@ def create_source(tenant: Tenant, *, name, transport="syslog", parser_id=None, m
     Session.add(s)
     Session.flush()
     if transport == "api":
-        _set_connector(s, connector, connector_config or {}, secrets or {}, interval_s, by)
+        _set_connector(s, connector, connector_config or {}, secrets or {}, interval_s, by, defer_secrets=defer_secrets)
+        if defer_secrets and s.secret_enc is None:
+            s.active = False  # sem credenciais: fica inativa até um administrador cadastrar e ativar
     return Outcome(message=f"Fonte “{s.name}” criada.", obj=s, tenant_id=tenant.id,
                    audit=[("source.created", s.name, {"transport": transport, "parser_id": s.parser_id, "connector": s.connector})])
 
 
-def _set_connector(s: Source, connector, config: dict, secrets: dict, interval_s, by: str):
+def _set_connector(s: Source, connector, config: dict, secrets: dict, interval_s, by: str, defer_secrets: bool = False):
     from ..engine import connectors
     try:
         c = connectors.get(connector) if connector else None
@@ -96,7 +98,7 @@ def _set_connector(s: Source, connector, config: dict, secrets: dict, interval_s
             raise ServiceError(f"Segredo desconhecido para este conector: {', '.join(sorted(bad))}")
         s.secret_enc = secrets_box.merge(s.secret_enc, f"source:{s.id}", secrets)
         s.secret_set_at, s.secret_set_by = utcnow(), by
-    elif s.secret_enc is None and any(f.required for f in c.secret_fields):
+    elif s.secret_enc is None and any(f.required for f in c.secret_fields) and not defer_secrets:
         raise ServiceError("Informe as credenciais do conector.")
     if not s.parser_id:
         p = Session.execute(select(Parser).where(Parser.slug == c.parser_slug)).scalar_one_or_none()

@@ -39,7 +39,9 @@ def _new_user(email, name, role, tenant_id, out: Outcome) -> User:
     return u
 
 
-def add(t: Tenant, *, name, email, role) -> Outcome:
+def add(t: Tenant, *, name, email, role=None, access=None, receives=None) -> Outcome:
+    """role (tela/API) ou access (EVA) = manager | reader. `receives` existe só por compatibilidade (sem lista de e-mails aqui)."""
+    role = role or access
     email = norm_email(email)
     if not email:
         raise PeopleError("Informe um e-mail válido.")
@@ -77,7 +79,11 @@ def remove(t: Tenant, email: str, actor: User | None = None) -> Outcome:
     return Outcome(message=f"{email} removido(a).", tenant_id=t.id, audit=[("user.removed", email, {})])
 
 
-def resend_invite(u: User) -> Outcome:
+def resend_invite(u, email: str | None = None) -> Outcome:
+    if isinstance(u, Tenant):  # chamada da EVA: (tenant, email)
+        u = Session.execute(select(User).where(User.tenant_id == u.id, User.email == norm_email(email))).scalar_one_or_none()
+        if u is None:
+            raise PeopleError("Pessoa não encontrada neste tenant.", 404)
     if u.status != "invited":
         raise PeopleError("Esta pessoa já ativou o acesso; ela entra pela tela de login.")
     out = Outcome(message=f"Novo convite enviado para {u.email}.", tenant_id=u.tenant_id)

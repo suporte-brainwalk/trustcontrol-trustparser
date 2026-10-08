@@ -26,7 +26,7 @@ from .mask import Masker
 log = logging.getLogger(__name__)
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 MAX_SAMPLE_LINES, MAX_SAMPLE_CHARS, MAX_DOCS_CHARS = 300, 150_000, 120_000
-ROUNDS = 3
+ROUNDS = 5
 
 
 def _read(rel: str) -> str:
@@ -137,6 +137,7 @@ def _sample_events() -> list[dict]:
 
 def _log(job: StudioJob, msg: str):
     job.log = (job.log or []) + [{"at": utcnow().isoformat(timespec="seconds"), "msg": msg[:500]}]
+    Session.commit()  # andamento visível na tela enquanto a IA trabalha
 
 
 def run_next() -> bool:
@@ -199,6 +200,7 @@ def generate(job: StudioJob):
     messages = _input_prompt(job, prompt_lines, docs, current)
     best = None
     for rnd in range(1, ROUNDS + 1):
+        _log(job, f"Rodada {rnd}: pedindo o parser à IA…")
         text, usage = ai.chat(messages)
         usage_total["cost"] += usage["cost"]
         usage_total["calls"] += 1

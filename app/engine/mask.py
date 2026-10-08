@@ -6,7 +6,7 @@ import ipaddress
 import re
 
 RE_IPV4 = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
-RE_IPV6 = re.compile(r"(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}(?![\w:])")
+RE_IPV6 = re.compile(r"(?<![\w:])(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(?![\w:])")
 RE_EMAIL = re.compile(r"\b[\w.+-]{1,64}@[\w-]+(?:\.[\w-]+)+\b")
 RE_UUID = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 RE_SID = re.compile(r"\bS-1-5-21-\d+-\d+-\d+")
@@ -39,6 +39,17 @@ class Masker:
         self.map[s] = new
         return new
 
+    def _v6(self, m):
+        s = m.group(0)
+        try:  # só endereço IPv6 de verdade (evita confundir horários como 2026:01:00:37)
+            ipaddress.IPv6Address(s)
+        except ValueError:
+            return s
+        if s not in self.map:
+            self.n["v6"] += 1
+            self.map[s] = f"2001:db8::{self.n['v6']:x}"
+        return self.map[s]
+
     def _sub(self, kind, fmt):
         def f(m):
             s = m.group(0)
@@ -57,6 +68,6 @@ class Masker:
         text = RE_EMAIL.sub(self._sub("mail", lambda n, s: f"usuario{n}@exemplo.com.br"), text)
         text = RE_UUID.sub(self._sub("uuid", lambda n, s: f"00000000-0000-4000-8000-{n:012d}"), text)
         text = RE_SID.sub(self._sub("sid", lambda n, s: f"S-1-5-21-1000000000-1000000000-{1000000000 + n}"), text)
-        text = RE_IPV6.sub(self._sub("v6", lambda n, s: f"2001:db8::{n:x}"), text)
+        text = RE_IPV6.sub(self._v6, text)
         text = RE_IPV4.sub(self._v4, text)
         return text
