@@ -172,8 +172,9 @@ class Ingest:
             ip = ip[7:]
         self.router.refresh()
         if self.router.resolve(ip, proto, "") is None:
-            self.stats["rejected_conn"] += 1
-            self.rejected[ip] = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "proto": proto}
+            if not ip.startswith("127."):  # 127.x = healthcheck do próprio container
+                self.stats["rejected_conn"] += 1
+                self.rejected[ip] = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "proto": proto}
             writer.close()
             return
         if self.conns[ip] >= MAX_CONN_PER_IP:
