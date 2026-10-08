@@ -76,7 +76,7 @@ input.i:focus,select.i:focus{outline:2px solid rgba(157,205,23,.45);border-color
 .app{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 31px);background:linear-gradient(90deg,var(--side) 240px,transparent 240px)}
 .side{background:var(--side);color:#c9d1d6;padding:18px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:calc(100vh - 31px);overflow:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px}
-.brand .logo{background:#fff;border-radius:8px;padding:6px 8px;display:flex}
+.brand .logo{display:flex;padding:6px 0}
 .brand .logo img{height:20px}
 .brand small{display:block;color:#8a959c;font-size:11px;margin-top:2px}
 .side .grp{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6f7b82;padding:14px 10px 6px}
@@ -215,7 +215,7 @@ table.t{width:100%;border-collapse:collapse}
 :root[data-theme="dark"] .theme-t .moon{background:#2e3740;color:#dff39c;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .login-form .theme-t{position:absolute;top:18px;right:18px}
 /* no escuro a plaquinha branca de contraste é pintada ao redor do logo, sem ocupar espaço: mesma posição e tamanho do modo claro */
-:root[data-theme="dark"] .login-box .login-logo{background:#fff;border-radius:3px;box-shadow:0 0 0 8px #fff}
+:root[data-theme="dark"] .login-box .login-logo{background:transparent}
 .pipe{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 .step{position:relative;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--card2);display:flex;flex-direction:column;gap:6px}
 .step .n{width:24px;height:24px;border-radius:50%;background:var(--green);color:#10200a;font-weight:700;display:grid;place-items:center;font-size:12px}
