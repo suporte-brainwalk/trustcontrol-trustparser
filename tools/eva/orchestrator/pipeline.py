@@ -143,8 +143,16 @@ class Job:
         self.timeline: list[str] = []
 
     def ai(self, prompt, schema, *, write=False, timeout=1500, web_search=False):
-        res = sandbox.run_claude(prompt, system=prompts.PERSONA, schema=schema, request_dir=self.dir, write=write, session_id=self.session,
-                                 timeout=timeout, web_search=web_search)
+        # o modelo às vezes não fecha a saída estruturada (error_max_structured_output_retries): tenta de novo, até 3 vezes
+        for attempt in range(3):
+            try:
+                res = sandbox.run_claude(prompt, system=prompts.PERSONA, schema=schema, request_dir=self.dir, write=write,
+                                         session_id=self.session, timeout=timeout, web_search=web_search)
+                break
+            except sandbox.SandboxError as e:
+                if attempt == 2 or not any(x in str(e) for x in ("structured", "sem saída", "resposta inválida")):
+                    raise
+                log.warning("pedido %s: nova tentativa da IA (%s)", self.rid, str(e)[:120])
         self.session = res["session_id"] or self.session
         self.cost += res.get("cost") or 0
         store.update_thread(self.thread["id"], session_id=self.session or "")

@@ -106,7 +106,7 @@ def run_claude(prompt: str, *, system: str, schema: dict, request_dir: str, writ
             for k, v in sandbox_env(key, config.ai_model(), config.EGRESS_PROXY).items():
                 fh.write(f"{k}={v}\n")
         os.chmod(envfile, 0o600)  # lido só pelo docker (root); apagado ao fim
-        cmd = build_cmd(name, envfile, prompt, system=system, schema=schema, request_dir=request_dir, write=write, tools=tools,
+        cmd = build_cmd(name, envfile, prompt, system=system, schema=_loosen(schema) if schema else schema, request_dir=request_dir, write=write, tools=tools,
                         model=config.ai_model(), session_id=session_id)
         t0 = time.time()
         try:
@@ -126,8 +126,63 @@ def run_claude(prompt: str, *, system: str, schema: dict, request_dir: str, writ
         data = {}
     if not data:
         raise SandboxError(f"resposta inválida do agente (código {r.returncode}): {(r.stderr or out)[-300:]}")
-    res = {"structured": data.get("structured_output"), "session_id": data.get("session_id") or session_id or "", "cost": data.get("total_cost_usd"),
+    res = {"structured": _coerce(data.get("structured_output"), schema) if schema and data.get("structured_output") is not None else data.get("structured_output"), "session_id": data.get("session_id") or session_id or "", "cost": data.get("total_cost_usd"),
            "is_error": bool(data.get("is_error")), "result": data.get("result", ""), "seconds": int(time.time() - t0)}
     if res["is_error"] or res["structured"] is None:
-        raise SandboxError(f"agente não concluiu: {str(res['result'])[:300]}")
+        import logging
+        logging.getLogger("eva.sandbox").warning("agente sem saída estruturada: subtype=%s turns=%s result=%r stderr=%r",
+                                                 data.get("subtype"), data.get("num_turns"), str(data.get("result", ""))[:500],
+                                                 (r.stderr or "")[-800:])
+        raise SandboxError(f"agente não concluiu ({data.get('subtype') or 'sem saída'}): {str(res['result'])[:300]}")
     return res
+
+
+# O conversor de chamadas de ferramenta do provedor (MiMo via OpenRouter) quebra em campos com tipo união com null
+# (ex.: ["integer", "null"]): o JSON sai truncado e a saída estruturada nunca fecha. Enviamos esses campos como texto e
+# convertemos de volta aqui, conforme o esquema original.
+def _loosen(schema):
+    if isinstance(schema, dict):
+        out = {}
+        for k, v in schema.items():
+            if k == "type" and isinstance(v, list) and "null" in v:
+                base = [t for t in v if t != "null"]
+                if base and base[0] in ("integer", "number", "boolean"):
+                    out[k] = "string"
+                    out["description"] = (schema.get("description", "") + " (texto; deixe vazio quando não se aplicar)").strip()
+                    continue
+                out[k] = base[0] if len(base) == 1 else base
+                continue
+            if k == "description" and "description" in out:
+                continue
+            out[k] = _loosen(v)
+        return out
+    if isinstance(schema, list):
+        return [_loosen(x) for x in schema]
+    return schema
+
+
+def _coerce(value, schema):
+    if not isinstance(schema, dict):
+        return value
+    t = schema.get("type")
+    if isinstance(t, list) and "null" in t:
+        base = next((x for x in t if x != "null"), None)
+        if value is None or (isinstance(value, str) and value.strip().lower() in ("", "null", "none", "nenhum")):
+            return None
+        if base == "integer":
+            try:
+                return int(str(value).strip())
+            except ValueError:
+                return None
+        if base == "number":
+            try:
+                return float(str(value).strip())
+            except ValueError:
+                return None
+        if base == "boolean":
+            return str(value).strip().lower() in ("true", "sim", "1", "yes")
+    if isinstance(value, dict) and isinstance(schema.get("properties"), dict):
+        return {k: _coerce(v, schema["properties"].get(k, {})) for k, v in value.items()}
+    if isinstance(value, list) and isinstance(schema.get("items"), dict):
+        return [_coerce(v, schema["items"]) for v in value]
+    return value
