@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "_tp.html" import syslog_box %}
+{% block title %}Ajuda{% endblock %}{% block crumb %}Sistema{% endblock %}{% block heading %}Como o Trust Parser funciona{% endblock %}
+{% block content %}
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>Fluxo</h3></div><div class="bd sm">
+<ol>
+<li><b>Entrada.</b> Syslog (TLS 6514, TCP ou UDP 514), coleta por API (WithSecure, Cortex XDR, Vision One, WatchGuard EPDR, Axur, Tenable) ou upload de arquivo.</li>
+<li><b>Firewall.</b> Só os IPs liberados em “Firewall do syslog” conseguem conectar. O servidor aplica as mudanças em até 1 minuto.</li>
+<li><b>Parsing determinístico.</b> Cada linha passa pelo parser da fonte (ou autodetecção) e vira um evento normalizado (OCSF). Mesma linha, mesmo resultado — sem IA em produção.</li>
+<li><b>Saída.</b> O evento é convertido no formato do destino (UDM para Google SecOps, JSON para Wazuh, LEEF para QRadar, CEF, OCSF, CSV) e enviado em lote, com reenvio automático. Também dá para baixar como .txt.</li>
+<li><b>Não reconhecidos.</b> Linhas que nenhum parser entende ficam em “Não reconhecidos”. De lá, um clique pede ao <b>Estúdio IA</b> um parser novo ou ajuste — a IA gera, o motor testa, um administrador publica.</li>
+<li><b>Buffer curto.</b> Eventos ficam 2 h; o que não foi entregue (destino fora do ar) fica até 24 h.</li>
+</ol></div></div>
+<div class="card"><div class="hd"><h3>Configurar os equipamentos</h3></div><div class="bd">{{ syslog_box(syslog) }}
+<div class="sm" style="margin-top:12px"><b>rsyslog (TLS)</b><pre class="code">global(DefaultNetstreamDriverCAFile="/etc/ssl/certs/ca-certificates.crt")
+action(type="omfwd" target="{{ syslog.host }}" port="{{ syslog.tls }}" protocol="tcp"
+       StreamDriver="gtls" StreamDriverMode="1" StreamDriverAuthMode="x509/name"
+       StreamDriverPermittedPeers="{{ syslog.host }}" TCP_Framing="octet-counted")</pre>
+<b>WatchGuard Firebox</b>: Sistema → Logging → Syslog → servidor {{ syslog.ip }}, porta {{ syslog.tcp }}, TCP ou UDP (o Firebox não envia com TLS).</div></div></div>
+</div>
+<div class="card" style="margin-top:16px"><div class="hd"><h3>EVA — suporte por IA</h3></div><div class="bd sm">Escreva para <b>eva-trustparser@trustcontrol.nuvem.tec.br</b> (ou pela API) pedindo dúvidas, ajustes de tela, cadastro de fontes/destinos/IPs ou um parser novo. Só quem está na lista de autorizados (Sistema → EVA) é atendido.</div></div>
+{% endblock %}

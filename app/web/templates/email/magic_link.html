@@ -1,0 +1,10 @@
+{% extends "email/_frame.html" %}
+{% block body %}
+<tr><td style="padding:22px 24px;font-size:14px;line-height:1.6;color:#1f2d3d;">
+  Olá{% if user.name %}, {{ user.name }}{% endif %},<br><br>
+  {% if purpose == 'invite' %}Você foi convidado para o <b>Trust Parser</b>{% if user.tenant %} ({{ user.tenant.name }}){% endif %}.{% else %}Recebemos um pedido de acesso ao <b>Trust Parser</b> para este e-mail.{% endif %}
+  <div style="text-align:center;margin:22px 0;"><a href="{{ link }}" style="display:inline-block;background:#7BBA37;color:#ffffff;padding:12px 26px;border-radius:6px;font-weight:700;text-decoration:none;">{{ 'Ativar meu acesso' if purpose == 'invite' else 'Entrar no portal' }}</a></div>
+  O link é válido por <b>{% if minutes >= 60 %}{{ (minutes // 60) }} horas{% else %}{{ minutes }} minutos{% endif %}</b> e pode ser usado <b>uma única vez</b>.<br>
+  <span style="color:#7a8794;font-size:12px;">Se você não esperava esta mensagem, ignore-a. Ninguém terá acesso sem clicar no link.<br>Link direto: {{ link }}</span>
+</td></tr>
+{% endblock %}

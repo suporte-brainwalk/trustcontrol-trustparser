@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import spark, st_badge %}
+{% block title %}{{ d.name if d else 'Novo destino' }}{% endblock %}{% block crumb %}Destinos de saída{% endblock %}{% block heading %}{{ d.name if d else 'Novo destino' }}{% endblock %}
+{% block content %}
+{% if not d and not kind %}
+<div class="card"><div class="hd"><h3>Escolha o tipo de destino</h3></div><div class="bd"><div class="kindgrid">
+{% for k, spec in kinds.items() %}<a href="{{ url_for('admin.destination_new', kind=k, tenant_id=tenant_id) }}"><b>{{ spec.name }}</b><div class="sm muted" style="margin-top:6px">{{ spec.help }}</div></a>{% endfor %}
+</div></div></div>
+{% else %}{% set spec = kinds[kind] %}
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>{{ spec.name }}</h3>{% if d %}<span class="sp"></span>{{ st_badge(d.status) }}{% endif %}</div><div class="bd">
+<div class="note" style="margin-top:0;margin-bottom:12px">{{ spec.help }}</div>
+<form method="post" action="{{ url_for('admin.destination', did=d.id) if d else url_for('admin.destination_new') }}">{{ csrf() }}<input type="hidden" name="kind" value="{{ kind }}">
+  {% if not d %}<div class="fg"><label class="f">Tenant *</label><select class="i" name="tenant_id" required>{% for t in tenants %}<option value="{{ t.id }}" {{ 'selected' if tenant_id == t.id }}>{{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+  <div class="fg"><label class="f">Nome *</label><input class="i" name="name" required maxlength="160" value="{{ d.name if d else '' }}" placeholder="Ex.: SecOps do cliente"></div>
+  <div class="fg"><label class="f">Formato do conteúdo</label><select class="i" name="format">{% for slug, name in outputs if spec.formats is none or slug in spec.formats %}<option value="{{ slug }}" {{ 'selected' if (d.format if d else spec.default_format) == slug }}>{{ name }}</option>{% endfor %}</select></div>
+  {% for f in spec.fields %}<div class="fg"><label class="f">{{ f.label }}{{ ' *' if f.required }}</label>
+    {% set val = (d.config.get(f.name, '') if d else f.default) %}
+    {% if f.kind == 'select' %}<select class="i" name="c_{{ f.name }}">{% for v, l in f.options %}<option value="{{ v }}" {{ 'selected' if val == v }}>{{ l }}</option>{% endfor %}</select>
+    {% elif f.kind == 'textarea' %}<textarea class="i code" name="c_{{ f.name }}" rows="4">{{ val }}</textarea>
+    {% else %}<input class="i" name="c_{{ f.name }}" value="{{ val }}" {{ 'required' if f.required }} {{ 'type=number' if f.kind == 'number' }}>{% endif %}
+    {% if f.help %}<div class="sm muted">{{ f.help }}</div>{% endif %}</div>{% endfor %}
+  {% for f in spec.secrets %}<div class="fg"><label class="f">🔒 {{ f.label }}{{ ' *' if f.required and not (d and d.secret_enc) }}</label>
+    {% if f.kind == 'textarea' %}<textarea class="i code" name="s_{{ f.name }}" rows="5" placeholder="{{ 'cadastrado em ' ~ (d.secret_set_at|dt) ~ ' por ' ~ d.secret_set_by ~ ' — deixe vazio para manter' if d and d.secret_enc else 'Cole aqui o JSON da conta de serviço' }}"></textarea>
+    {% else %}<input class="i" type="password" autocomplete="new-password" name="s_{{ f.name }}" placeholder="{{ 'cadastrado — deixe vazio para manter' if d and d.secret_enc else '' }}">{% endif %}
+    <div class="sm muted">{{ f.help }}</div></div>{% endfor %}
+  <details class="fieldset"><summary class="sm"><b>Filtros (opcional)</b> — por padrão vai tudo o que for reconhecido</summary>
+    <div class="fg"><label class="f">Somente estas fontes</label><div class="checklist">{% for s in tenant_sources %}<label><input type="checkbox" name="source_ids" value="{{ s.id }}" {{ 'checked' if d and s.id in (d.filters.source_ids or []) }}><span>{{ s.name }}</span></label>{% else %}<span class="sm muted">Sem fontes cadastradas.</span>{% endfor %}</div></div>
+    <div class="two"><div class="fg"><label class="f">Severidade mínima</label><select class="i" name="min_severity_id">{% for v, l in [('', 'Todas'),(2,'Baixa ou maior'),(3,'Média ou maior'),(4,'Alta ou maior'),(5,'Crítica')] %}<option value="{{ v }}" {{ 'selected' if d and d.filters.min_severity_id == v }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="fg"><label class="f">Classes OCSF (ids, vírgula)</label><input class="i mono" name="class_uids" value="{{ (d.filters.class_uids or [])|join(',') if d else '' }}" placeholder="ex.: 3002,2004"></div></div>
+    <label class="row" style="gap:6px"><input type="checkbox" name="include_unparsed" value="1" {{ 'checked' if d and d.include_unparsed }}> Enviar também linhas não reconhecidas (bruto com etiqueta) das fontes configuradas para encaminhar</label>
+  </details>
+  <label class="row" style="gap:6px;margin-top:8px"><input type="checkbox" name="active" value="1" {{ 'checked' if (not d) or d.active }}> Destino ativo</label>
+  <div class="row" style="margin-top:12px"><button class="btn p" type="submit">{{ 'Salvar' if d else 'Criar destino' }}</button></div>
+</form>
+{% if d %}<form method="post" action="{{ url_for('admin.destination_action', did=d.id) }}" class="row" style="margin-top:12px">{{ csrf() }}
+  <button class="btn o sm" name="action" value="test" data-confirm-btn="Enviar 1 evento de teste para este destino?">Testar conexão (envia 1 evento de teste)</button>
+  <button class="btn o sm" name="action" value="retry">Reenviar pendentes agora</button>
+  <button class="btn o sm danger" name="action" value="delete" data-confirm-btn="Excluir o destino {{ d.name }}? As entregas pendentes dele são descartadas.">Excluir</button></form>{% endif %}
+</div></div>
+<div class="grid" style="align-content:start">
+{% if d %}
+<div class="card"><div class="hd"><h3>Entregas</h3></div><div class="bd">{{ spark(series) }}
+  <div class="row sm" style="margin-top:10px;gap:14px">{% for k, l in [('sent','enviadas'),('pending','pendentes'),('failed','rejeitadas'),('dropped','expiradas')] %}<span><b>{{ (counts.get(k) or 0)|num }}</b> {{ l }}</span>{% endfor %}</div>
+  <div class="sm muted" style="margin-top:6px">Total enviado: {{ d.sent_total|num }} · último ok: {{ d.last_ok_at|dt }}{% if d.paused_until %} · tentativas espaçadas até {{ d.paused_until|dt('%H:%M:%S') }}{% endif %}</div>
+  {% if d.last_error %}<div class="testmode alert-err" style="margin-top:10px">⚠ <div><b>Último erro</b> ({{ d.last_error_at|dt }}): {{ d.last_error }}</div></div>{% endif %}</div></div>
+{% if last_err %}<div class="card"><div class="hd"><h3>Últimas falhas por evento</h3></div><div class="tw"><table class="t">{% for e in last_err %}<tr><td class="sm">#{{ e.event_id }}</td><td class="sm">{{ e.status }} · {{ e.attempts }}x</td><td class="sm">{{ e.last_error }}</td></tr>{% endfor %}</table></div></div>{% endif %}
+{% endif %}
+{% if kind == 'wazuh' %}<div class="card"><div class="hd"><h3>Pacote para o Wazuh</h3></div><div class="bd sm">
+  <p>O Wazuh precisa do decoder do Trust Parser para ler o JSON depois do cabeçalho syslog. <b>Confirme a versão do manager</b>: 4.x usa XML; 5.x mudou o motor (YAML) e não recebe syslog direto.</p>
+  <ul><li><a href="{{ url_for('admin.wazuh_pack', name='trustparser_decoders.xml') }}">trustparser_decoders.xml</a> (4.x · /var/ossec/etc/decoders/)</li>
+  <li><a href="{{ url_for('admin.wazuh_pack', name='trustparser_rules.xml') }}">trustparser_rules.xml</a> (4.x · /var/ossec/etc/rules/)</li>
+  <li><a href="{{ url_for('admin.wazuh_pack', name='trustparser-wazuh5-integration.yml') }}">trustparser-wazuh5-integration.yml</a> (5.x · rascunho)</li>
+  <li><a href="{{ url_for('admin.wazuh_pack', name='LEIA-ME.md') }}">LEIA-ME.md</a> (passo a passo)</li></ul></div></div>{% endif %}
+{% if kind in ('secops_chronicle', 'secops_legacy') %}<div class="card"><div class="hd"><h3>O que a Trust cadastra</h3></div><div class="bd sm">
+  <ol><li>Região e Customer ID (SecOps → Configurações do SIEM → Perfil).</li>{% if kind == 'secops_chronicle' %}<li>ID do projeto Google Cloud vinculado à instância.</li><li>Conta de serviço com a permissão <span class="mono">chronicle.events.import</span> (papel Chronicle API Editor) e a API Chronicle ativa no projeto.</li>{% else %}<li>Conta de serviço de ingestão (escopo malachite-ingestion) fornecida pelo Google.</li>{% endif %}
+  <li>Use “Testar conexão”: envia um evento STATUS_HEARTBEAT do “Trust Parser”.</li></ol>
+  <p class="muted">Os eventos chegam já parseados em UDM (não passam por parser do Google). Lotes de até 1.000 eventos; evento rejeitado é isolado sem perder o lote.</p></div></div>{% endif %}
+</div></div>
+{% endif %}
+{% endblock %}

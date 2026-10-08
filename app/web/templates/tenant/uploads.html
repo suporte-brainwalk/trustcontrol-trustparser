@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Upload e download{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Upload e download{% endblock %}
+{% block content %}
+<div class="grid g2">
+{% if is_manager %}<div class="card"><div class="hd"><h3>Enviar arquivo</h3></div><div class="bd"><form method="post" action="{{ url_for('tenant.upload_new') }}" enctype="multipart/form-data">{{ csrf() }}
+  <div class="fg"><label class="f">Arquivo *</label><input class="i" type="file" name="file" required accept=".txt,.log,.json,.jsonl,.csv,.xlsx,.gz"></div>
+  <div class="fg"><label class="f">Parser</label><select class="i" name="parser_id"><option value="">Autodetectar</option>{% for p in inputs if p.active %}<option value="{{ p.id }}">{{ p.vendor }} · {{ p.name }}</option>{% endfor %}</select></div>
+  <label class="row" style="gap:6px"><input type="checkbox" name="send" value="1"> Enviar também para os destinos</label>
+  <div style="margin-top:10px"><button class="btn p">Enviar</button></div></form></div></div>{% endif %}
+<div class="card"><div class="hd"><h3>Envios</h3></div><div class="tw"><table class="t"><tr><th>Arquivo</th><th>Linhas</th><th>Reconhecidas</th><th>Situação</th></tr>
+{% for u in rows %}<tr><td><a href="{{ url_for('tenant.upload', uid=u.id) }}"><b>{{ u.filename }}</b></a><div class="sm muted">{{ u.created_at|dt }}</div></td><td>{{ u.lines|num }}</td><td>{{ u.parsed|num }}</td><td class="sm">{{ u.status }}</td></tr>{% else %}<tr><td colspan="4" class="empty-state">Nenhum envio.</td></tr>{% endfor %}</table></div></div>
+</div>
+{% endblock %}

@@ -1,0 +1,531 @@
+{
+ "slug": "cortex-xdr-cef",
+ "name": "Palo Alto Cortex XDR · alertas e auditoria via syslog (CEF)",
+ "vendor": "Palo Alto Networks",
+ "product": "Cortex XDR",
+ "description": "Notificações do Cortex XDR encaminhadas por syslog (UDP/TCP/TLS) em CEF: alertas/issues (Device Event Class ID = origem do alerta: XDR Agent, XDR BIOC, XDR Analytics, PAN NGFW…) viram Detection Finding com endpoint, processo iniciador, arquivo e rede; 'Agent Audit Logs' viram Event Log Activity; 'Management Audit Logs' ficam como Base Event com usuário, resultado e descrição. Ignora qualquer texto antes do CEF (prefixo do receptor, cabeçalho RFC 5424 com 3 ou 4 traços). Feito pela documentação (modelo de campos; não há linha real de alerta publicada) — validar com amostra real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "re": "CEF:\\d\\|Palo Alto Networks\\|Cortex XDR"
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "cef",
+   "from": "$raw",
+   "to": "c"
+  },
+  {
+   "op": "set",
+   "to": "user_raw",
+   "value": {
+    "path": "c.ext.suser",
+    "type": "nil"
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "c.ext.end",
+     "type": "time"
+    },
+    {
+     "path": "c.ext.rt",
+     "type": "time"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.logged_time": {
+   "first": [
+    {
+     "path": "c.ext.rt",
+     "type": "time"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "Palo Alto Networks"
+  },
+  "metadata.product.name": "c.device_product",
+  "metadata.product.version": {
+   "path": "c.device_version",
+   "type": "strip"
+  },
+  "metadata.event_code": "c.signature_id",
+  "metadata.event_subtype": "c.name",
+  "metadata.uid": "c.ext.externalId",
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "category_uid": {
+   "const": 0
+  },
+  "category_name": {
+   "const": "Uncategorized"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "activity_name": {
+   "const": "Other"
+  },
+  "severity_id": {
+   "lookup": {
+    "path": "c.severity",
+    "type": "strip"
+   },
+   "table": {
+    "0": 0,
+    "1": 1,
+    "2": 1,
+    "3": 2,
+    "4": 2,
+    "5": 3,
+    "6": 2,
+    "7": 3,
+    "8": 3,
+    "9": 4,
+    "10": 5
+   },
+   "default": 0
+  },
+  "message": {
+   "first": [
+    "c.ext.msg",
+    "c.name"
+   ]
+  },
+  "device.hostname": {
+   "path": "c.ext.shost",
+   "type": "nil"
+  },
+  "device.domain": {
+   "path": "c.ext.dvchost",
+   "type": "nil"
+  },
+  "device.org.name": "c.ext.tenantname",
+  "actor.user.name": {
+   "path": "user_raw",
+   "type": "user"
+  },
+  "actor.user.domain": {
+   "path": "user_raw",
+   "type": "domain"
+  },
+  "actor.user.full_name": "user_raw"
+ },
+ "cases": [
+  {
+   "name": "auditoria-de-gestao",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "Management Audit Logs"
+   },
+   "map": {
+    "actor.user.email_addr": "c.ext.email",
+    "status": {
+     "lookup": {
+      "path": "c.ext.result",
+      "type": "upper"
+     },
+     "table": {
+      "SUCCESS": "Success",
+      "FAIL": "Failure",
+      "FAILURE": "Failure"
+     }
+    },
+    "status_detail": {
+     "path": "c.ext.reason",
+     "type": "nil"
+    },
+    "metadata.event_subtype": {
+     "template": "{c.name} / {c.ext.subtype}",
+     "strict": true
+    },
+    "metadata.log_name": {
+     "const": "Management Audit Logs"
+    }
+   }
+  },
+  {
+   "name": "auditoria-do-agente",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "Agent Audit Logs"
+   },
+   "map": {
+    "class_uid": {
+     "const": 1008
+    },
+    "class_name": {
+     "const": "Event Log Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "activity_name": {
+     "const": "Other"
+    },
+    "metadata.event_subtype": {
+     "template": "{c.name} / {c.ext.subtype}",
+     "strict": true
+    },
+    "metadata.log_name": {
+     "const": "Agent Audit Logs"
+    },
+    "status": {
+     "lookup": {
+      "path": "c.ext.result",
+      "type": "upper"
+     },
+     "table": {
+      "SUCCESS": "Success",
+      "FAIL": "Failure",
+      "FAILURE": "Failure"
+     }
+    },
+    "status_detail": {
+     "path": "c.ext.reason",
+     "type": "nil"
+    },
+    "device.agent_version": "c.ext.agentversion",
+    "finding_info.types": {
+     "list": [
+      "c.ext.cat"
+     ]
+    }
+   }
+  },
+  {
+   "name": "alerta",
+   "when": {
+    "path": "c.device_product",
+    "eq": "Cortex XDR"
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "metadata.log_name": {
+     "const": "Alerts"
+    },
+    "finding_info.title": "c.name",
+    "finding_info.uid": "c.ext.externalId",
+    "finding_info.types": {
+     "list": [
+      "c.ext.cat"
+     ]
+    },
+    "finding_info.src": "c.signature_id",
+    "finding_info.related_incident": "c.ext.incident",
+    "message": "c.name",
+    "disposition": {
+     "lookup": {
+      "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "prevent": "Blocked",
+      "block": "Blocked",
+      "detect": "Detected",
+      "report": "Detected",
+      "scan": "Detected",
+      "allow": "Allowed"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": {
+      "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "prevent": 2,
+      "block": 2,
+      "detect": 15,
+      "report": 15,
+      "scan": 15,
+      "allow": 1
+     },
+     "default": 15
+    },
+    "action": {
+     "lookup": {
+      "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "prevent": "Denied",
+      "block": "Denied",
+      "allow": "Allowed"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "prevent": 2,
+      "block": 2,
+      "allow": 1
+     }
+    },
+    "actor.process.name": {
+     "first": [
+      "c.ext.Initiated by",
+      {
+       "path": "c.ext.initiatorPath",
+       "type": "basename"
+      }
+     ]
+    },
+    "actor.process.path": "c.ext.initiatorPath",
+    "actor.process.cmd_line": "c.ext.Initiator CMD",
+    "actor.process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "c.ext.initiatorSha256",
+         "type": "hash_alg"
+        },
+        "value": "c.ext.initiatorSha256"
+       }
+      }
+     ]
+    },
+    "actor.process.file.signer": "c.ext.Signature",
+    "actor.process.parent_process.name": {
+     "first": [
+      "c.ext.CGO name",
+      "c.ext.osParentName"
+     ]
+    },
+    "actor.process.parent_process.cmd_line": {
+     "first": [
+      "c.ext.CGO CMD",
+      "c.ext.osParentCmd"
+     ]
+    },
+    "file.path": "c.ext.filePath",
+    "file.name": {
+     "path": "c.ext.filePath",
+     "type": "basename"
+    },
+    "file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "c.ext.fileHash",
+         "type": "hash_alg"
+        },
+        "value": "c.ext.fileHash"
+       }
+      }
+     ]
+    },
+    "src_endpoint.ip": {
+     "path": "c.ext.src",
+     "type": "ip"
+    },
+    "src_endpoint.port": {
+     "path": "c.ext.spt",
+     "type": "int"
+    },
+    "dst_endpoint.ip": {
+     "path": "c.ext.dst",
+     "type": "ip"
+    },
+    "dst_endpoint.port": {
+     "path": "c.ext.dpt",
+     "type": "int"
+    },
+    "http_request.url.url_string": {
+     "path": "c.ext.request",
+     "type": "nil"
+    }
+   }
+  }
+ ],
+ "unmapped": [
+  "c.ext"
+ ],
+ "unmapped_drop": [
+  "end",
+  "rt",
+  "shost",
+  "dvchost",
+  "externalId",
+  "suser",
+  "msg",
+  "cat",
+  "act",
+  "src",
+  "spt",
+  "dst",
+  "dpt",
+  "filePath",
+  "fileHash",
+  "initiatorPath",
+  "initiatorSha256",
+  "request",
+  "tenantname",
+  "email",
+  "result",
+  "reason",
+  "agentversion",
+  "Initiated by",
+  "Initiator CMD",
+  "Signature",
+  "CGO name",
+  "CGO CMD",
+  "cs1",
+  "cs2",
+  "cs3",
+  "cs4",
+  "cs5",
+  "cs6",
+  "cs1Label",
+  "cs2Label",
+  "cs3Label",
+  "cs4Label",
+  "cs5Label",
+  "cs6Label"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "alerta BIOC (reconstruído do modelo da documentação)",
+   "input": "<14>1 2026-10-08T12:00:00.000000Z cortexxdr - - - CEF:0|Palo Alto Networks|Cortex XDR|Cortex XDR 3.x|XDR BIOC|Windows Firewall disabled via Registry|6|end=1588792514182 shost=testhostname-123 cat=Tampering externalId=52517f58-0201-4d66-b5c4-00922664737e cs1Label=Initiated by cs1=netsh.exe cs2Label=Initiator CMD cs2=netsh  advfirewall set allprofiles state off cs4Label=CGO name cs4=cmd.exe incident=891 act=Detected suser=DOMAIN\\\\user tenantname=test tenantCDLid=11111 CSPaccountname=00000",
+   "expect": {
+    "time": "2020-05-06T19:15:14.182Z",
+    "class_uid": 2004,
+    "metadata.event_code": "XDR BIOC",
+    "finding_info.title": "Windows Firewall disabled via Registry",
+    "finding_info.types": [
+     "Tampering"
+    ],
+    "finding_info.uid": "52517f58-0201-4d66-b5c4-00922664737e",
+    "severity_id": 2,
+    "disposition": "Detected",
+    "device.hostname": "testhostname-123",
+    "actor.process.name": "netsh.exe",
+    "actor.process.cmd_line": "netsh  advfirewall set allprofiles state off",
+    "actor.process.parent_process.name": "cmd.exe",
+    "actor.user.name": "user",
+    "finding_info.related_incident": "891",
+    "metadata.logged_time": "2026-10-08T12:00:00.000Z"
+   }
+  },
+  {
+   "name": "auditoria de gestão (exemplo da documentação, com prefixo do receptor)",
+   "input": "3/18/2012:05:17.567 PM<14>1 2020-03-18T12:05:17.567590Z cortexxdr - - - CEF:0|Palo Alto Networks|Cortex XDR|Cortex XDR x.x |Management Audit Logs|REPORTING|6|suser=test end=1584533117501 externalId=5820 cs1Label=email cs1=test@paloaltonetworks.com cs2Label=subtype cs2=Slack Report cs3Label=result cs3=SUCCESS cs4Label=reason cs4=None msg=Slack report 'scheduled_1584533112442' ID 00 to ['CUXM741BK', 'C01022YU00L', 'CV51Y1E2X', 'CRK3VASN9'] tenantname=test tenantCDLid=11111 CSPaccountname=00000",
+   "expect": {
+    "time": "2020-03-18T12:05:17.501Z",
+    "class_uid": 0,
+    "metadata.event_code": "Management Audit Logs",
+    "metadata.event_subtype": "REPORTING / Slack Report",
+    "actor.user.name": "test",
+    "actor.user.email_addr": "test@paloaltonetworks.com",
+    "status": "Success",
+    "metadata.product.version": "Cortex XDR x.x",
+    "metadata.uid": "5820"
+   }
+  },
+  {
+   "name": "auditoria do agente (exemplo da documentação)",
+   "input": "<182>1 2020-10-04T10:41:14.608731Z cortexxdr - - - - CEF:0|Palo Alto Networks|Cortex XDR Agent|Cortex XDR Agent 7.2.0.63060|Agent Audit Logs|Agent Service|9|dvchost=WORKGROUP shost=Test-Agent cat=Monitoring end=1601808073102 rt=1601808074596 cs1Label=agentversion cs1=7.2.0.63060 cs2Label=subtype cs2=Stop cs3Label=result cs3=N\\/A cs4Label=reason cs4=None msg=XDR service cyserver was stopped on Test-Agent tenantname=Test tenantCDLid=123456 CSPaccountname=1234",
+   "expect": {
+    "time": "2020-10-04T10:41:13.102Z",
+    "class_uid": 1008,
+    "device.hostname": "Test-Agent",
+    "device.domain": "WORKGROUP",
+    "message": "XDR service cyserver was stopped on Test-Agent",
+    "metadata.event_subtype": "Agent Service / Stop",
+    "metadata.product.name": "Cortex XDR Agent",
+    "severity_id": 4,
+    "device.agent_version": "7.2.0.63060"
+   }
+  },
+  {
+   "name": "malware bloqueado pelo agente com arquivo e rede (sintético)",
+   "input": "<11>1 2026-10-08T13:00:05.123456Z cortexxdr - - - CEF:0|Palo Alto Networks|Cortex XDR|Cortex XDR 3.14|XDR Agent|WildFire Malware|9|end=1791464400000 shost=PC-0001 deviceFacility=Local Analysis cat=Malware externalId=1234567 cs1Label=Initiated by cs1=explorer.exe cs2Label=Initiator CMD cs2=C:\\Windows\\Explorer.EXE cs3Label=Signature cs3=SIGNATURE_SIGNED dst=203.0.113.20 dpt=443 src=10.0.0.15 spt=50123 fileHash=275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f filePath=C:\\Users\\usuario1\\Downloads\\fatura.exe initiatorSha256=1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b initiatorPath=C:\\Windows\\explorer.exe incident=1201 act=Prevented (Blocked) suser=ACME\\usuario1 tenantname=acme tenantCDLid=11111 CSPaccountname=00000",
+   "expect": {
+    "class_uid": 2004,
+    "severity_id": 4,
+    "disposition": "Blocked",
+    "action": "Denied",
+    "file.name": "fatura.exe",
+    "file.hashes.0.algorithm": "SHA-256",
+    "src_endpoint.ip": "10.0.0.15",
+    "dst_endpoint.port": 443,
+    "actor.process.path": "C:\\Windows\\explorer.exe",
+    "actor.user.domain": "ACME",
+    "unmapped.deviceFacility": "Local Analysis"
+   }
+  },
+  {
+   "name": "alerta de Analytics de severidade média (sintético)",
+   "input": "<12>1 2026-10-08T13:05:00.000000Z cortexxdr - - - CEF:0|Palo Alto Networks|Cortex XDR|Cortex XDR 3.14|XDR Analytics|Large Upload (Generic)|8|end=1791464700000 shost=SRV-FILES-01 cat=Exfiltration externalId=7654321 dst=198.51.100.200 dpt=443 src=10.0.0.40 incident=1202 act=Detected suser=NT AUTHORITY\\SYSTEM tenantname=acme",
+   "expect": {
+    "class_uid": 2004,
+    "severity_id": 3,
+    "finding_info.types": [
+     "Exfiltration"
+    ],
+    "disposition": "Detected",
+    "actor.user.name": "SYSTEM",
+    "device.hostname": "SRV-FILES-01"
+   }
+  }
+ ]
+}

@@ -1,0 +1,307 @@
+{
+ "slug": "trend-vision-one-api-alert",
+ "name": "Trend Vision One · alerta do Workbench (API v3)",
+ "vendor": "Trend Micro (TrendAI)",
+ "product": "Vision One",
+ "description": "Um alerta do Workbench de GET /v3.0/workbench/alerts (items[]) ou /v3.0/workbench/alerts/{id}, serializado em uma linha (provedores SAE e TI). Vira Detection Finding com modelo, descrição, link, score, severidade, incidente/caso, primeiro host e primeira conta do escopo de impacto, primeira regra/filtro e técnicas MITRE. Feito pela documentação (exemplos do OpenAPI) — validar com resposta real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "all": [
+   {
+    "re": "^\\s*\\{"
+   },
+   {
+    "contains": "\"alertProvider\""
+   },
+   {
+    "any": [
+     {
+      "contains": "\"workbenchLink\""
+     },
+     {
+      "re": "\"id\"\\s*:\\s*\"WB-"
+     }
+    ]
+   }
+  ]
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "j"
+  },
+  {
+   "op": "set",
+   "to": "host",
+   "value": {
+    "path": "j.impactScope.entities",
+    "type": [
+     "pick:entityType=host",
+     "key:entityValue"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "acct",
+   "value": {
+    "path": "j.impactScope.entities",
+    "type": [
+     "pick:entityType=account",
+     "key:entityValue"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "mail",
+   "value": {
+    "path": "j.impactScope.entities",
+    "type": [
+     "pick:entityType=emailAddress",
+     "key:entityValue"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "flt",
+   "value": {
+    "path": "j.matchedRules.0.matchedFilters.0"
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "j.createdDateTime",
+     "type": "time"
+    },
+    {
+     "path": "j.updatedDateTime",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.logged_time": {
+   "path": "j.updatedDateTime",
+   "type": "time"
+  },
+  "metadata.product.vendor_name": {
+   "const": "Trend Micro"
+  },
+  "metadata.product.name": {
+   "const": "Vision One"
+  },
+  "metadata.product.version": "j.schemaVersion",
+  "metadata.event_code": {
+   "template": "workbench.{j.alertProvider}",
+   "strict": true
+  },
+  "metadata.event_subtype": "j.modelType",
+  "metadata.uid": "j.id",
+  "class_uid": {
+   "const": 2004
+  },
+  "class_name": {
+   "const": "Detection Finding"
+  },
+  "category_uid": {
+   "const": 2
+  },
+  "category_name": {
+   "const": "Findings"
+  },
+  "activity_id": {
+   "const": 1
+  },
+  "activity_name": {
+   "const": "Create"
+  },
+  "severity_id": {
+   "lookup": {
+    "path": "j.severity",
+    "type": "lower"
+   },
+   "table": {
+    "low": 2,
+    "medium": 3,
+    "high": 4,
+    "critical": 5
+   },
+   "default": 0
+  },
+  "message": {
+   "first": [
+    {
+     "template": "{j.model}: {j.description}",
+     "strict": true
+    },
+    "j.model"
+   ]
+  },
+  "finding_info.uid": "j.id",
+  "finding_info.title": "j.model",
+  "finding_info.desc": "j.description",
+  "finding_info.src_url": {
+   "first": [
+    "j.workbenchLink",
+    "j.reportLink"
+   ]
+  },
+  "finding_info.types": {
+   "list": [
+    "j.alertProvider",
+    "j.modelType"
+   ]
+  },
+  "finding_info.related_incident": "j.incidentId",
+  "finding_info.related_case": "j.caseId",
+  "finding_info.risk_score": {
+   "path": "j.score",
+   "type": "int"
+  },
+  "finding_info.status": {
+   "first": [
+    "j.status",
+    "j.investigationStatus"
+   ]
+  },
+  "finding_info.verdict": "j.investigationResult",
+  "finding_info.first_seen_time": {
+   "path": "j.firstInvestigatedDateTime",
+   "type": "time"
+  },
+  "finding_info.modified_time": {
+   "path": "j.updatedDateTime",
+   "type": "time"
+  },
+  "finding_info.techniques": "flt.mitreTechniqueIds",
+  "rule.name": "j.matchedRules.0.name",
+  "rule.uid": "j.matchedRules.0.id",
+  "policy.name": "flt.name",
+  "policy.uid": "flt.id",
+  "device.hostname": {
+   "path": "host",
+   "type": "key:name"
+  },
+  "device.uid": {
+   "path": "host",
+   "type": "key:guid"
+  },
+  "device.ip": {
+   "path": "host",
+   "type": [
+    "key:ips",
+    "ips",
+    "first"
+   ]
+  },
+  "device.ips": {
+   "path": "host",
+   "type": [
+    "key:ips",
+    "ips"
+   ]
+  },
+  "actor.user.name": {
+   "path": "acct",
+   "type": "user"
+  },
+  "actor.user.domain": {
+   "path": "acct",
+   "type": "domain"
+  },
+  "actor.user.full_name": "acct",
+  "actor.user.email_addr": "mail"
+ },
+ "unmapped": [
+  "j"
+ ],
+ "unmapped_drop": [
+  "id",
+  "model",
+  "description",
+  "workbenchLink",
+  "reportLink",
+  "severity",
+  "score",
+  "createdDateTime",
+  "updatedDateTime",
+  "firstInvestigatedDateTime",
+  "incidentId",
+  "caseId",
+  "status",
+  "investigationStatus",
+  "investigationResult",
+  "alertProvider",
+  "modelType",
+  "schemaVersion"
+ ],
+ "require": [
+  "time",
+  "metadata.uid"
+ ],
+ "tests": [
+  {
+   "name": "alerta SAE (exemplo do OpenAPI)",
+   "input": "{\"schemaVersion\":\"1.12\",\"id\":\"WB-9002-20220906-00022\",\"investigationStatus\":\"New\",\"status\":\"Open\",\"investigationResult\":\"No Findings\",\"workbenchLink\":\"https://THE_WORKBENCH_URL\",\"alertProvider\":\"SAE\",\"modelId\":\"1ebd4f91-4b28-40b4-87f5-8defee4791d8\",\"model\":\"Privilege Escalation via UAC Bypass\",\"modelType\":\"preset\",\"score\":64,\"severity\":\"high\",\"firstInvestigatedDateTime\":\"2022-10-06T02:30:31Z\",\"createdDateTime\":\"2022-09-06T02:49:31Z\",\"updatedDateTime\":\"2022-09-06T02:49:48Z\",\"incidentId\":\"IC-1-20230706-00001\",\"caseId\":\"CL-1-20230706-00001\",\"ownerIds\":[\"12345678-1234-1234-1234-123456789012\"],\"impactScope\":{\"desktopCount\":1,\"serverCount\":0,\"accountCount\":1,\"emailAddressCount\":1,\"containerCount\":1,\"cloudIdentityCount\":1,\"entities\":[{\"entityType\":\"account\",\"entityValue\":\"shockwave\\\\sam\",\"entityId\":\"shockwave\\\\sam\",\"relatedEntities\":[\"35FA11DA-A24E-40CF-8B56-BAF8828CC15E\"],\"relatedIndicatorIds\":[],\"provenance\":[\"Alert\"]},{\"entityType\":\"host\",\"entityValue\":{\"guid\":\"35FA11DA-A24E-40CF-8B56-BAF8828CC15E\",\"name\":\"nimda\",\"ips\":[\"10.10.58.51\"]},\"entityId\":\"35FA11DA-A24E-40CF-8B56-BAF8828CC15E\",\"managementScopeGroupId\":\"deadbeef-292e-42ae-86be-d2fef483a248\",\"managementScopeInstanceId\":\"1babc299-52de-44f4-a1d2-8a224f391eee\",\"managementScopePartitionKey\":\"4c1850c0-8a2a-4637-9f88-6afbab54dd79\",\"relatedEntities\":[\"shockwave\\\\sam\"],\"relatedIndicatorIds\":[1,2,3,4,5,6,7,8],\"provenance\":[\"Alert\"]},{\"entityType\":\"cloudIdentity\",\"entityValue\":\"arn:aws:sts::985266316733:assumed-role/aad-admin/steven_hung\",\"…\":\"…\"}]},\"description\":\"A user bypassed User Account Control (UAC) to gain higher-level permissions.\",\"matchedRules\":[{\"id\":\"25d96e5d-cb69-4935-ae27-43cc0cdca1cc\",\"name\":\"(T1088) Bypass UAC via shell open registry\",\"matchedFilters\":[{\"id\":\"ac200e74-8309-463e-ad6b-a4c16a3a377f\",\"name\":\"Bypass UAC Via Shell Open Default Registry\",\"matchedDateTime\":\"2022-09-05T03:53:49.802Z\",\"mitreTechniqueIds\":[\"T1112\",\"V9.T1112\",\"V9.T1548.002\"],\"matchedEvents\":[{\"uuid\":\"a32599b7-c0c9-45ed-97bf-f2be7679fb00\",\"matchedDateTime\":\"2022-09-05T03:53:49.802Z\",\"type\":\"TELEMETRY_REGISTRY\"}]}]}],\"indicators\":[{\"id\":1,\"type\":\"command_line\",\"field\":\"processCmd\",\"value\":\"c:\\\\windows\\\\system32\\\\rundll32.exe c:\\\\users\\\\sam\\\\appdata\\\\local\\\\cyzfc.dat entrypoint\",\"relatedEntities\":[\"35FA11DA-A24E-40CF-8B56-BAF8828CC15E\"],\"filterIds\":[\"ac200e74-8309-463e-ad6b-a4c16a3a377f\"],\"provenance\":[\"Alert\"]},{\"id\":5,\"type\":\"registry_key\",\"field\":\"objectRegistryKeyHandle\",\"value\":\"hkcr\\\\ms-settings\\\\shell\\\\open\\\\command\",\"…\":\"…\"}]}",
+   "expect": {
+    "time": "2022-09-06T02:49:31.000Z",
+    "class_uid": 2004,
+    "severity_id": 4,
+    "finding_info.uid": "WB-9002-20220906-00022",
+    "finding_info.title": "Privilege Escalation via UAC Bypass",
+    "finding_info.risk_score": 64,
+    "device.hostname": "nimda",
+    "device.ip": "10.10.58.51",
+    "device.uid": "35FA11DA-A24E-40CF-8B56-BAF8828CC15E",
+    "actor.user.name": "sam",
+    "actor.user.domain": "shockwave",
+    "rule.name": "(T1088) Bypass UAC via shell open registry",
+    "finding_info.techniques": [
+     "T1112",
+     "V9.T1112",
+     "V9.T1548.002"
+    ],
+    "metadata.event_code": "workbench.SAE",
+    "finding_info.related_incident": "IC-1-20230706-00001"
+   }
+  },
+  {
+   "name": "alerta TI (exemplo do OpenAPI)",
+   "input": "{\"schemaVersion\":\"1.3\",\"id\":\"WB-9002-20220909-00111\",\"investigationStatus\":\"New\",\"status\":\"Open\",\"investigationResult\":\"No Findings\",\"workbenchLink\":\"https://THE_WORKBENCH_URL\",\"alertProvider\":\"TI\",\"modelId\":\"report--12ea4e6c-2b13-44e4-94a9-4cc8da461258\",\"model\":\"Threat Intelligence Sweeping\",\"modelType\":\"preset\",\"campaign\":null,\"industry\":null,\"regionAndCountry\":null,\"createdBy\":\"n/a\",\"totalIndicatorCount\":9,\"matchedIndicatorCount\":1,\"reportLink\":\"https://THE_TI_REPORT_URL\",\"score\":42,\"severity\":\"medium\",\"createdDateTime\":\"2022-09-09T09:04:36Z\",\"updatedDateTime\":\"2022-09-09T09:04:36Z\",\"incidentId\":\"IC-1-20230706-00001\",\"caseId\":\"CL-1-20230706-00001\",\"ownerIds\":[\"12345678-1234-1234-1234-123456789012\"],\"impactScope\":{\"desktopCount\":2,\"serverCount\":0,\"accountCount\":0,\"emailAddressCount\":0,\"containerCount\":0,\"cloudIdentityCount\":0,\"entities\":[{\"entityType\":\"host\",\"entityValue\":{\"guid\":\"2E7EC0A5-6686-4BE0-BAF8-AD3C2DA19A0D\",\"name\":\"M1-Max\",\"ips\":[\"10.64.25.134\"]},\"entityId\":\"2E7EC0A5-6686-4BE0-BAF8-AD3C2DA19A0D\",\"relatedEntities\":[],\"relatedIndicatorIds\":[1],\"provenance\":[\"Alert\"]}]},\"indicators\":[{\"id\":1,\"type\":\"filename\",\"fields\":[[]],\"value\":\"goog-phish-proto-1.vlpset\",\"relatedEntities\":[\"2E7EC0A5-6686-4BE0-BAF8-AD3C2DA19A0D\",\"D7E9EC75-4072-2D48-01EF-7A6A95FAD384\"],\"matchedIndicatorPatternIds\":[\"3d206434-58eb-42e4-8355-44ddd394850c\"],\"firstSeenDateTimes\":[\"2022-07-27T03:00:47.000Z\",\"2022-08-16T09:15:06.000Z\"],\"lastSeenDateTimes\":[\"2022-07-28T01:25:52.000Z\",\"2022-08-17T07:05:34.000Z\"],\"provenance\":[\"Alert\"]}],\"matchedIndicatorPatterns\":[{\"id\":\"3d206434-58eb-42e4-8355-44ddd394850c\",\"pattern\":\"[file:name = 'goog-phish-proto-1.vlpset']\",\"tags\":[\"STIX2.malicious-activity\"],\"matchedLogs\":[\"Lengthy log string\"]}]}",
+   "expect": {
+    "severity_id": 3,
+    "finding_info.title": "Threat Intelligence Sweeping",
+    "device.hostname": "M1-Max",
+    "metadata.event_code": "workbench.TI",
+    "finding_info.types": [
+     "TI",
+     "preset"
+    ],
+    "unmapped.matchedIndicatorCount": 1
+   }
+  },
+  {
+   "name": "modelo customizado crítico com e-mail e conta (sintético)",
+   "input": "{\"schemaVersion\":\"1.15\",\"id\":\"WB-9002-20261008-00031\",\"status\":\"In Progress\",\"investigationResult\":\"True Positive\",\"workbenchLink\":\"https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-9002-20261008-00031\",\"alertProvider\":\"SAE\",\"modelId\":\"00000000-0000-4000-8000-00000000c001\",\"model\":\"Possível exfiltração por ferramenta de sincronização\",\"modelType\":\"custom\",\"score\":91,\"severity\":\"critical\",\"createdDateTime\":\"2026-10-08T11:58:02Z\",\"updatedDateTime\":\"2026-10-08T12:20:00Z\",\"incidentId\":\"IC-1-20261008-00007\",\"caseId\":\"CL-1-20261008-00007\",\"impactScope\":{\"desktopCount\":1,\"serverCount\":1,\"accountCount\":1,\"emailAddressCount\":1,\"containerCount\":0,\"cloudIdentityCount\":0,\"entities\":[{\"entityType\":\"emailAddress\",\"entityValue\":\"usuario1@acme.com.br\",\"entityId\":\"usuario1@acme.com.br\"},{\"entityType\":\"host\",\"entityValue\":{\"guid\":\"00000000-0000-4000-8000-0000000000d1\",\"name\":\"SRV-FILES-01\",\"ips\":[\"10.0.0.40\",\"fe80::1\"]},\"entityId\":\"00000000-0000-4000-8000-0000000000d1\"},{\"entityType\":\"account\",\"entityValue\":\"ACME\\\\usuario1\",\"entityId\":\"ACME\\\\usuario1\"}]},\"description\":\"Grande volume de dados enviado para armazenamento em nuvem não autorizado.\",\"matchedRules\":[{\"id\":\"00000000-0000-4000-8000-00000000c002\",\"name\":\"Exfil via rclone\",\"matchedFilters\":[{\"id\":\"00000000-0000-4000-8000-00000000c003\",\"name\":\"Rclone copy to cloud\",\"matchedDateTime\":\"2026-10-08T11:57:40Z\",\"mitreTechniqueIds\":[\"T1567.002\"],\"matchedEvents\":[]}]}],\"indicators\":[]}",
+   "expect": {
+    "severity_id": 5,
+    "device.ips": [
+     "10.0.0.40",
+     "fe80::1"
+    ],
+    "actor.user.email_addr": "usuario1@acme.com.br",
+    "actor.user.full_name": "ACME\\usuario1",
+    "policy.name": "Rclone copy to cloud",
+    "finding_info.verdict": "True Positive",
+    "finding_info.status": "In Progress",
+    "metadata.logged_time": "2026-10-08T12:20:00.000Z"
+   }
+  }
+ ]
+}

@@ -1,0 +1,46 @@
+# ---- EVA (Trust Parser): agente de suporte e manutenção por e-mail/API.
+# Mesclar em /root/docker-compose.yml: os dois serviços abaixo em "services:" e as redes em "networks:".
+# Pré-requisitos: rede trustparser_net (já existe, 172.29.0.0/24), postfix-mail ligado à trustparser_net com a caixa
+# eva-trustparser@ (deploy/eva/setup-mailbox.sh), /root/trustparser/secrets/eva.env (600, a partir de eva.env.example),
+# imagem eva-sandbox (docker build -f tools/eva/Dockerfile.sandbox -t eva-sandbox:latest tools/eva) e /srv/eva.
+# O sandbox do agente é criado pelo orquestrador a cada pedido (docker run --network eva_sandbox ...), sem segredos do
+# Trust Parser, sem banco e com saída só para openrouter.ai via eva-egress.
+services:
+  eva-egress:
+    image: ubuntu/squid:latest
+    container_name: eva-egress
+    volumes:
+      - /root/trustcontrol-trustparser/tools/eva/egress/squid.conf:/etc/squid/squid.conf:ro
+    networks:
+      - eva_sandbox
+      - eva_egress_out
+    restart: unless-stopped
+
+  eva-orchestrator:
+    build:
+      context: /root/trustcontrol-trustparser/tools/eva
+    image: eva-orchestrator:latest
+    container_name: eva-orchestrator
+    env_file:
+      - /root/trustparser/secrets/eva.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
+      - /root:/root          # repo, compose, chave SSH do GitHub (alias github-tc-trustparser), CLI do agente e segredos (600)
+      - /srv/eva:/srv/eva
+    working_dir: /root/trustcontrol-trustparser/tools/eva
+    command: ["python", "-m", "orchestrator.main"]
+    depends_on:
+      parser-db:
+        condition: service_healthy
+    networks:
+      - trustparser_net      # parser-db, parser-app (API v1), postfix-mail (IMAP 993 / SMTP 25), nginx-proxy (verificação no ar)
+    restart: unless-stopped
+
+networks:
+  eva_sandbox:
+    name: eva_sandbox
+    internal: true           # sem rota para fora: o sandbox só alcança o eva-egress
+  eva_egress_out:
+    name: eva_egress_out

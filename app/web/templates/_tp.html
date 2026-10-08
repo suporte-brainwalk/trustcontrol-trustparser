@@ -1,0 +1,19 @@
+{% macro spark(series, key_ok='b', key_bad='c') -%}
+{% set mx = (series|map(attribute='a')|max) if series else 0 %}
+<div class="spark" title="Eventos por minuto (60 min): verde = reconhecidos, vermelho = não reconhecidos">{% for p in series %}{% set h = ((p.a * 100 / mx) if mx else 0) %}<i style="height:{{ [h, 1]|max }}%" class="{{ 'u' if p[key_bad] and p[key_bad] >= p[key_ok] }}" title="{{ p.m|dt('%H:%M') }} · {{ p.a }} recebidos · {{ p[key_bad] }} não reconhecidos"></i>{% endfor %}</div>
+{%- endmacro %}
+
+{% macro st_badge(st) -%}<span class="st {{ {'ok':'ok','err':'err','pending':'warn'}.get(st, 'warn') }}">{{ {'ok':'ok','err':'com falha','pending':'aguardando'}.get(st, st) }}</span>{%- endmacro %}
+
+{% macro syslog_box(syslog, compact=False) -%}
+<div class="addr">
+  <span class="muted">Servidor</span><b>{{ syslog.host }}</b>
+  <span class="muted">IP público</span><b>{{ syslog.ip }}</b>
+  <span class="muted">Syslog TLS</span><b>{{ syslog.host }}:{{ syslog.tls }}/TCP (RFC 5425)</b>
+  <span class="muted">Syslog TCP</span><b>{{ syslog.ip }}:{{ syslog.tcp }}/TCP (sem TLS)</b>
+  <span class="muted">Syslog UDP</span><b>{{ syslog.ip }}:{{ syslog.udp }}/UDP (sem TLS)</b>
+</div>
+{% if not compact %}<div class="note">{{ syslog.ca_note }} Só IPs liberados no firewall conseguem conectar.</div>{% endif %}
+{%- endmacro %}
+
+{% macro ev_status(e) -%}<span class="st {{ {'parsed':'ok','unparsed':'err','received':'warn'}.get(e.status, 'warn') }}">{{ {'parsed':'reconhecido','unparsed':'não reconhecido','received':'na fila'}.get(e.status, e.status) }}</span>{%- endmacro %}

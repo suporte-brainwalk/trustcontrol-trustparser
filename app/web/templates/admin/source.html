@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import spark, syslog_box, ev_status %}{% from "admin/_connector_fields.html" import connector_fields %}
+{% block title %}{{ s.name }}{% endblock %}{% block crumb %}Fontes · {{ s.tenant.name }}{% endblock %}{% block heading %}{{ s.name }}{% endblock %}
+{% block content %}
+<div class="grid g4">
+  <div class="card kpi accent"><div class="l">Recebidos</div><div class="v">{{ s.events_total|num }}</div><div class="s">último: {{ s.last_event_at|dt }}</div></div>
+  <div class="card kpi blue"><div class="l">Reconhecidos</div><div class="v">{{ s.parsed_total|num }}</div><div class="s">{{ ((s.parsed_total * 100 / s.events_total)|round(1)) if s.events_total else '—' }}% do total</div></div>
+  <div class="card kpi red"><div class="l">Não reconhecidos</div><div class="v">{{ s.unparsed_total|num }}</div><div class="s"><a href="{{ url_for('admin.unparsed', source_id=s.id) }}">ver linhas →</a></div></div>
+  <div class="card kpi purple"><div class="l">Entrada</div><div class="v" style="font-size:20px">{{ {'syslog':'Syslog','upload':'Upload','api':'API'}[s.transport] }}</div><div class="s">{{ s.parser.name if s.parser else 'autodetecção de formato' }}</div></div>
+</div>
+<div class="grid g2" style="margin-top:16px">
+<div class="card"><div class="hd"><h3>Configuração</h3><span class="sp"></span>{% if s.active %}<span class="st ok">ativa</span>{% else %}<span class="st warn">inativa</span>{% endif %}</div><div class="bd">
+<form method="post" action="{{ url_for('admin.source_edit', sid=s.id) }}">{{ csrf() }}
+  <div class="fg"><label class="f">Nome</label><input class="i" name="name" value="{{ s.name }}" required maxlength="160"></div>
+  <div class="fg"><label class="f">Parser</label><select class="i" name="parser_id"><option value="">Autodetectar pelo formato</option>{% for p in inputs %}<option value="{{ p.id }}" {{ 'selected' if s.parser_id == p.id }}>{{ p.vendor }} · {{ p.name }}{{ ' (inativo)' if not p.active }}</option>{% endfor %}</select></div>
+  {% if s.transport == 'syslog' %}<div class="fg"><label class="f">Hostname (regex, opcional)</label><input class="i mono" name="match_hostname" value="{{ s.match_hostname }}"></div>{% endif %}
+  {% if s.transport == 'api' %}<input type="hidden" name="connector" value="{{ s.connector }}">
+    {{ connector_fields({s.connector: connector}, s.connector, s.connector_config) if connector }}
+    <div class="sm muted">Credenciais cadastradas {% if s.secret_set_at %}em {{ s.secret_set_at|dt }} por {{ s.secret_set_by }}{% else %}—{% endif %} (nunca são exibidas).</div>
+    <div class="fg"><label class="f">Intervalo de coleta (s)</label><input class="i" type="number" min="60" name="interval_s" value="{{ s.interval_s }}"></div>{% endif %}
+  <div class="fg"><label class="f">Linhas não reconhecidas</label><select class="i" name="unparsed_policy">{% for k, l in unparsed.items() %}<option value="{{ k }}" {{ 'selected' if s.unparsed_policy == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">Avisar se ficar sem eventos por (min, 0 = não)</label><input class="i" type="number" min="0" name="silence_alert_minutes" value="{{ s.silence_alert_minutes }}"></div>
+  <div class="fg"><label class="f">Observações</label><input class="i" name="note" value="{{ s.note }}"></div>
+  <label class="row" style="gap:6px"><input type="checkbox" name="active" value="1" {{ 'checked' if s.active }}> Fonte ativa</label>
+  <div class="row" style="margin-top:12px"><button class="btn p" type="submit">Salvar</button></div>
+</form>
+<form method="post" action="{{ url_for('admin.source_action', sid=s.id) }}" class="row" style="margin-top:12px" data-confirm="Excluir a fonte {{ s.name }}? Os IPs liberados só para ela também saem do firewall.">{{ csrf() }}<button class="btn o sm danger" name="action" value="delete">Excluir fonte</button></form>
+</div></div>
+<div class="grid" style="align-content:start">
+  <div class="card"><div class="hd"><h3>Últimos 60 minutos</h3></div><div class="bd">{{ spark(series) }}</div></div>
+  {% if s.transport == 'api' %}<div class="card"><div class="hd"><h3>Coleta pela API</h3><span class="sp"></span><span class="st {{ {'ok':'ok','err':'err'}.get(s.last_status, 'warn') }}">{{ s.last_status }}</span></div><div class="bd">
+    <div class="sm">Última coleta: <b>{{ s.last_run_at|dt }}</b> · próxima: {{ s.next_run_at|dt }}</div>
+    <div class="sm muted" style="margin:6px 0">{{ s.last_error or '—' }}</div>
+    <form method="post" action="{{ url_for('admin.source_action', sid=s.id) }}" class="row">{{ csrf() }}<button class="btn o sm" name="action" value="test">Testar credenciais</button><button class="btn o sm" name="action" value="run">Coletar agora</button></form></div></div>
+  {% else %}<div class="card"><div class="hd"><h3>IPs liberados para esta fonte</h3><span class="sp"></span><a class="sm" href="{{ url_for('admin.tenant', tid=s.tenant_id, tab='ips') }}">gerenciar →</a></div>
+    <div class="tw"><table class="t">{% for a in ips %}<tr class="{{ 'muted-row' if not a.active }}"><td class="mono">{{ a.cidr }}</td><td>{% for p in a.protocols %}<span class="tag">{{ p|upper }}</span>{% endfor %}</td><td class="sm">{{ 'só esta fonte' if a.source_id else 'qualquer fonte do tenant' }}</td></tr>{% else %}<tr><td class="empty-state">Nenhum IP liberado — o equipamento não consegue enviar.</td></tr>{% endfor %}</table></div>
+    <div class="bd">{{ syslog_box(syslog) }}</div></div>{% endif %}
+</div></div>
+<div class="card" style="margin-top:16px"><div class="hd"><h3>Últimas linhas recebidas</h3><span class="sp"></span><a class="sm" href="{{ url_for('admin.events', source_id=s.id) }}">ver no buffer →</a></div>
+<div class="tw"><table class="t"><tr><th>Recebido</th><th>Origem</th><th>Situação</th><th>Linha</th></tr>
+{% for e in recent %}<tr><td class="sm nowrap">{{ e.received_at|dt('%d/%m %H:%M:%S') }}</td><td class="sm mono">{{ e.peer_ip }} {{ e.transport }}</td><td>{{ ev_status(e) }}{% if e.error %}<div class="sm muted">{{ e.error }}</div>{% endif %}</td><td><span class="mono sm trunc">{{ e.raw }}</span></td></tr>
+{% else %}<tr><td colspan="4" class="empty-state">Nada recebido ainda.</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

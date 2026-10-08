@@ -1,0 +1,465 @@
+{
+ "slug": "tenable-vuln-export",
+ "name": "Tenable Vulnerability Management · achado do export de vulnerabilidades (JSON)",
+ "vendor": "Tenable",
+ "product": "Tenable Vulnerability Management (ex-Tenable.io)",
+ "description": "Um achado (objeto) do chunk de GET /vulns/export/{uuid}/chunks/{id} do Tenable VM, serializado em uma linha. Vira Vulnerability Finding: ativo (hostname, IP, MAC, SO, uuid), plugin (id em metadata.event_code, nome, família), CVEs, CVSS v2/v3/v4, VPR/EPSS, solução, porta/protocolo, estado (OPEN/REOPENED/FIXED) e datas de primeiro/último achado. A saída do plugin fica em 'unmapped'. Feito pela documentação (exemplo oficial do chunk) — validar com export real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "all": [
+   {
+    "re": "^\\s*\\{"
+   },
+   {
+    "contains": "\"plugin\""
+   },
+   {
+    "contains": "\"asset\""
+   },
+   {
+    "any": [
+     {
+      "contains": "\"finding_id\""
+     },
+     {
+      "contains": "\"severity_id\""
+     },
+     {
+      "contains": "\"last_found\""
+     }
+    ]
+   }
+  ]
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "j"
+  },
+  {
+   "op": "set",
+   "to": "pl",
+   "value": "j.plugin"
+  },
+  {
+   "op": "set",
+   "to": "a",
+   "value": "j.asset"
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "j.last_found",
+     "type": "time"
+    },
+    {
+     "path": "j.indexed",
+     "type": "time"
+    },
+    {
+     "path": "j.first_found",
+     "type": "time"
+    },
+    {
+     "path": "j.scan.started_at",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.logged_time": {
+   "path": "j.indexed",
+   "type": "time"
+  },
+  "metadata.product.vendor_name": {
+   "const": "Tenable"
+  },
+  "metadata.product.name": {
+   "const": "Tenable Vulnerability Management"
+  },
+  "metadata.event_code": {
+   "path": "pl.id",
+   "type": "str"
+  },
+  "metadata.event_subtype": "pl.family",
+  "metadata.uid": "j.finding_id",
+  "metadata.log_name": "j.source",
+  "class_uid": {
+   "const": 2002
+  },
+  "class_name": {
+   "const": "Vulnerability Finding"
+  },
+  "category_uid": {
+   "const": 2
+  },
+  "category_name": {
+   "const": "Findings"
+  },
+  "activity_id": {
+   "lookup": {
+    "path": "j.state",
+    "type": "upper"
+   },
+   "table": {
+    "OPEN": 1,
+    "REOPENED": 2,
+    "FIXED": 3
+   },
+   "default": 99
+  },
+  "activity_name": {
+   "lookup": {
+    "path": "j.state",
+    "type": "upper"
+   },
+   "table": {
+    "OPEN": "Create",
+    "REOPENED": "Update",
+    "FIXED": "Close"
+   },
+   "default": "Other"
+  },
+  "severity_id": {
+   "first": [
+    {
+     "lookup": {
+      "path": "j.severity_id",
+      "type": "str"
+     },
+     "table": {
+      "0": 1,
+      "1": 2,
+      "2": 3,
+      "3": 4,
+      "4": 5
+     }
+    },
+    {
+     "lookup": {
+      "path": "j.severity",
+      "type": "lower"
+     },
+     "table": {
+      "info": 1,
+      "low": 2,
+      "medium": 3,
+      "high": 4,
+      "critical": 5
+     }
+    }
+   ]
+  },
+  "status": {
+   "lookup": {
+    "path": "j.state",
+    "type": "upper"
+   },
+   "table": {
+    "OPEN": "New",
+    "REOPENED": "New",
+    "FIXED": "Resolved"
+   }
+  },
+  "status_id": {
+   "lookup": {
+    "path": "j.state",
+    "type": "upper"
+   },
+   "table": {
+    "OPEN": 1,
+    "REOPENED": 1,
+    "FIXED": 4
+   }
+  },
+  "status_detail": "j.state",
+  "message": {
+   "first": [
+    {
+     "template": "{pl.name} em {a.hostname} ({a.ipv4})",
+     "strict": true
+    },
+    {
+     "template": "{pl.name} em {a.ipv4}",
+     "strict": true
+    },
+    "pl.name"
+   ]
+  },
+  "finding_info.uid": "j.finding_id",
+  "finding_info.title": "pl.name",
+  "finding_info.desc": "pl.synopsis",
+  "finding_info.product_uid": {
+   "path": "pl.id",
+   "type": "str"
+  },
+  "finding_info.types": {
+   "list": [
+    "pl.family",
+    "pl.type"
+   ]
+  },
+  "finding_info.first_seen_time": {
+   "path": "j.first_found",
+   "type": "time"
+  },
+  "finding_info.last_seen_time": {
+   "path": "j.last_found",
+   "type": "time"
+  },
+  "vulnerabilities": {
+   "list": [
+    {
+     "object": {
+      "cve": {
+       "path": "pl.cve",
+       "type": "first"
+      },
+      "cves": "pl.cve",
+      "title": "pl.name",
+      "desc": "pl.description",
+      "severity": {
+       "path": "j.severity",
+       "type": "upper_first"
+      },
+      "cvss": {
+       "list": [
+        {
+         "object": {
+          "version": {
+           "lookup": {
+            "regex": "^()\\d",
+            "path": "pl.cvss3_base_score"
+           },
+           "table": {
+            "": "3.0"
+           }
+          },
+          "base_score": "pl.cvss3_base_score",
+          "temporal_score": "pl.cvss3_temporal_score",
+          "vector_string": "pl.cvss3_vector.raw"
+         }
+        },
+        {
+         "object": {
+          "version": {
+           "lookup": {
+            "regex": "^()\\d",
+            "path": "pl.cvss_base_score"
+           },
+           "table": {
+            "": "2.0"
+           }
+          },
+          "base_score": "pl.cvss_base_score",
+          "vector_string": "pl.cvss_vector.raw"
+         }
+        },
+        {
+         "object": {
+          "version": {
+           "lookup": {
+            "regex": "^()\\d",
+            "path": "pl.cvss4_base_score"
+           },
+           "table": {
+            "": "4.0"
+           }
+          },
+          "base_score": "pl.cvss4_base_score"
+         }
+        }
+       ]
+      },
+      "vpr_score": "pl.vpr.score",
+      "epss_score": "pl.epss_score",
+      "is_exploit_available": "pl.exploit_available",
+      "fix_available": "pl.has_patch",
+      "kb_articles": "pl.ms_bulletin",
+      "references": "pl.see_also",
+      "remediation": {
+       "object": {
+        "desc": "pl.solution"
+       }
+      },
+      "vendor_name": {
+       "const": "Tenable"
+      },
+      "first_seen_time": {
+       "path": "j.first_found",
+       "type": "time"
+      },
+      "last_seen_time": {
+       "path": "j.last_found",
+       "type": "time"
+      }
+     }
+    }
+   ]
+  },
+  "device.hostname": {
+   "first": [
+    {
+     "path": "a.hostname",
+     "type": "nil"
+    },
+    {
+     "path": "a.netbios_name",
+     "type": "nil"
+    },
+    {
+     "path": "a.fqdn",
+     "type": "nil"
+    }
+   ]
+  },
+  "device.fqdn": "a.fqdn",
+  "device.uid": "a.uuid",
+  "device.ip": {
+   "first": [
+    {
+     "path": "a.ipv4",
+     "type": "ip"
+    },
+    {
+     "path": "a.ipv6",
+     "type": "ip"
+    }
+   ]
+  },
+  "device.ips": {
+   "list": [
+    {
+     "path": "a.ipv4",
+     "type": "ip"
+    },
+    {
+     "path": "a.ipv6",
+     "type": "ip"
+    }
+   ]
+  },
+  "device.mac": "a.mac_address",
+  "device.os.name": {
+   "path": "a.operating_system",
+   "type": "first"
+  },
+  "device.type": "a.device_type",
+  "dst_endpoint.port": {
+   "regex": "^([1-9]\\d*)$",
+   "path": "j.port.port",
+   "type": "int"
+  },
+  "connection_info.protocol_name": {
+   "path": "j.port.protocol",
+   "type": "lower"
+  },
+  "unmapped.service": "j.port.service",
+  "unmapped.plugin_output": "j.output",
+  "unmapped.scan_uuid": "j.scan.uuid",
+  "unmapped.vpr_v2": "pl.vpr_v2",
+  "unmapped.xrefs": "pl.xrefs"
+ },
+ "unmapped": [
+  "j"
+ ],
+ "unmapped_drop": [
+  "asset",
+  "plugin",
+  "port",
+  "scan",
+  "output",
+  "severity",
+  "severity_id",
+  "first_found",
+  "last_found",
+  "state",
+  "indexed",
+  "source",
+  "finding_id"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "achado alto com CVEs e CVSS (exemplo oficial do chunk)",
+   "input": "{\"asset\":{\"bios_uuid\":\"1fa02642-5b8e-8f27-42a9-debde798d957\",\"device_type\":\"general-purpose\",\"fqdn\":\"sharepoint2016.target.example.com\",\"hostname\":\"sharepoint2016\",\"uuid\":\"53ed0fa2-ccd5-4d2e-92ee-c072635889e3\",\"ipv4\":\"203.0.113.71\",\"ipv6\":\"2001:db8:199e:6fb9:2edd:67f0:3f30:c7\",\"last_authenticated_results\":\"2023-05-04T05:03:13.737Z\",\"mac_address\":\"00:50:56:a6:22:93\",\"netbios_name\":\"SHAREPOINT2016\",\"operating_system\":[\"Microsoft Windows Server 2016 Standard\"],\"serial_number\":\"C137B8E58B6\",\"network_id\":\"00000000-0000-0000-0000-000000000000\",\"tracked\":true},\"output\":\"\\n\\n  Produact : Microsoft SharePoint Enterprise Server 2016\\n  KB : 5002113\\n  - C:\\\\Program Files\\\\Microsoft Office Servers\\\\16.0\\\\bin\\\\ascalc.dll has not been patched.\\n    Remote version : 16.0.4342.1000\\n    Should be      : 16.0.5266.1000\\n\\n\",\"plugin\":{\"bid\":[156641],\"cpe\":[\"cpe:/a:microsoft:sharepoint_server\"],\"cvss3_base_score\":8.8,\"cvss3_temporal_score\":7.7,\"cvss3_vector\":{\"access_complexity\":\"Low\",\"access_vector\":\"Network\",\"availability_impact\":\"High\",\"confidentiality_impact\":\"High\",\"integrity_impact\":\"High\",\"raw\":\"AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H\"},\"cvss4_base_score\":6.9,\"cvss_base_score\":9,\"cvss_temporal_score\":6.7,\"cvss_vector\":{\"access_complexity\":\"Low\",\"access_vector\":\"Network\",\"authentication\":\"Single\",\"availability_impact\":\"Complete\",\"confidentiality_impact\":\"Complete\",\"integrity_impact\":\"Complete\",\"raw\":\"AV:N/AC:L/Au:S/C:C/I:C/A:C\"},\"description\":\"The Microsoft SharePoint Server 2013 installation on the remote host is missing security updates. ...\",\"exploit_available\":false,\"exploitability_ease\":\"No known exploits are available\",\"exploited_by_malware\":false,\"family\":\"Windows : Microsoft Bulletins\",\"family_id\":41,\"has_patch\":true,\"id\":156641,\"in_the_news\":false,\"ms_bulletin\":[\"5002113\"],\"name\":\"Security Updates for Microsoft SharePoint Server 2016 (January 2022)\",\"patch_publication_date\":\"2022-01-11T00:00:00Z\",\"modification_date\":\"2022-05-06T00:00:00Z\",\"publication_date\":\"2022-01-12T00:00:00Z\",\"risk_factor\":\"high\",\"see_also\":[\"https://support.microsoft.com/en-us/help/5002113\"],\"solution\":\"Microsoft has released security update KB5002113 to address this issue.\",\"stig_severity\":\"I\",\"synopsis\":\"The Microsoft SharePoint Server 2016 installation on the remote host is missing security updates.\",\"unsupported_by_vendor\":false,\"version\":\"1.6\",\"vuln_publication_date\":\"2022-01-11T00:00:00Z\",\"xrefs\":[{\"type\":\"CVE\",\"id\":\"2022-21837\"},{\"type\":\"IAVA\",\"id\":\"2022-A-0007-S\"},{\"type\":\"MSKB\",\"id\":\"5002113\"}],\"vpr\":{\"score\":6.7,\"drivers\":{\"age_of_vuln\":{\"lower_bound\":731},\"exploit_code_maturity\":\"UNPROVEN\",\"cvss_impact_score_predicted\":false,\"cvss3_impact_score\":5.9,\"threat_intensity_last28\":\"VERY_LOW\",\"threat_sources_last28\":[\"No recorded events\"],\"product_coverage\":\"LOW\"},\"updated\":\"2024-02-04T06:03:56Z\"},\"vpr_v2\":{\"score\":4.9,\"vpr_percentile\":56.16,\"vpr_severity\":\"MEDIUM\",\"exploit_probability\":0.001,\"cve_id\":\"CVE-2010-0049\",\"exploit_code_maturity\":\"FUNCTIONAL\",\"on_cisa_kev\":false},\"epss_score\":10.647,\"vendor_severity\":\"Important\",\"cve\":[\"CVE-2022-21837\",\"CVE-2022-21840\",\"CVE-2022-21842\"],\"type\":\"local\"},\"port\":{\"port\":445,\"protocol\":\"TCP\",\"service\":\"cifs\"},\"scan\":{\"schedule_uuid\":\"461e4ebc-b309-face-6fa1-afa4ba163cb6d84b9dc0a0dc5020\",\"started_at\":\"2023-05-03T14:14:02.387Z\",\"last_scan_target\":\"192.0.2.58\",\"uuid\":\"270b911b-1fe6-4760-8c49-88d315cb764e\"},\"severity\":\"high\",\"severity_id\":3,\"severity_default_id\":3,\"severity_modification_type\":\"NONE\",\"first_found\":\"2022-11-08T19:18:10.472Z\",\"last_found\":\"2023-05-04T05:03:13.737Z\",\"state\":\"OPEN\",\"indexed\":\"2023-05-04T05:13:40.809406Z\",\"source\":\"NESSUS\",\"finding_id\":\"02716af9-1adb-4057-b4d5-dcb0c36b290c\",\"resurfaced_date\":\"2024-11-27T11:56:24.384Z\",\"time_taken_to_fix\":3045760}",
+   "expect": {
+    "time": "2023-05-04T05:03:13.737Z",
+    "class_uid": 2002,
+    "activity_id": 1,
+    "severity_id": 4,
+    "metadata.event_code": "156641",
+    "finding_info.uid": "02716af9-1adb-4057-b4d5-dcb0c36b290c",
+    "finding_info.title": "Security Updates for Microsoft SharePoint Server 2016 (January 2022)",
+    "vulnerabilities.0.cve": "CVE-2022-21837",
+    "vulnerabilities.0.cves": [
+     "CVE-2022-21837",
+     "CVE-2022-21840",
+     "CVE-2022-21842"
+    ],
+    "vulnerabilities.0.severity": "High",
+    "vulnerabilities.0.cvss.0.base_score": 8.8,
+    "vulnerabilities.0.cvss.0.version": "3.0",
+    "vulnerabilities.0.cvss.1.vector_string": "AV:N/AC:L/Au:S/C:C/I:C/A:C",
+    "vulnerabilities.0.is_exploit_available": false,
+    "vulnerabilities.0.kb_articles": [
+     "5002113"
+    ],
+    "device.hostname": "sharepoint2016",
+    "device.ip": "203.0.113.71",
+    "device.ips": [
+     "203.0.113.71",
+     "2001:db8:199e:6fb9:2edd:67f0:3f30:c7"
+    ],
+    "device.os.name": "Microsoft Windows Server 2016 Standard",
+    "dst_endpoint.port": 445,
+    "status": "New"
+   }
+  },
+  {
+   "name": "achado informativo sem CVE (baseado no 2º objeto do exemplo)",
+   "input": "{\"asset\":{\"device_type\":\"general-purpose\",\"fqdn\":\"web01.target.example.com\",\"hostname\":\"web01\",\"uuid\":\"00000000-0000-4000-8000-0000000000f1\",\"ipv4\":\"203.0.113.72\",\"netbios_name\":\"WEB01\",\"operating_system\":[\"Linux Kernel 5.15\"],\"network_id\":\"00000000-0000-0000-0000-000000000000\",\"tracked\":true},\"output\":\"The remote web server type is :\\n\\nnginx\",\"plugin\":{\"cpe\":[],\"description\":\"This plugin attempts to determine the type and the version of the remote web server.\",\"family\":\"Web Servers\",\"family_id\":11,\"has_patch\":false,\"id\":10107,\"name\":\"HTTP Server Type and Version\",\"risk_factor\":\"info\",\"solution\":\"n/a\",\"synopsis\":\"A web server is running on the remote host.\",\"type\":\"remote\",\"xrefs\":[]},\"port\":{\"port\":443,\"protocol\":\"TCP\",\"service\":\"www\"},\"scan\":{\"started_at\":\"2023-05-03T14:14:02.387Z\",\"uuid\":\"270b911b-1fe6-4760-8c49-88d315cb764e\"},\"severity\":\"info\",\"severity_id\":0,\"severity_default_id\":0,\"severity_modification_type\":\"NONE\",\"first_found\":\"2022-11-08T19:18:10.472Z\",\"last_found\":\"2023-05-04T05:03:13.737Z\",\"state\":\"OPEN\",\"indexed\":\"2023-05-04T05:13:40.809406Z\",\"source\":\"NESSUS\",\"finding_id\":\"00000000-0000-4000-8000-0000000000f2\"}",
+   "expect": {
+    "severity_id": 1,
+    "metadata.event_code": "10107",
+    "vulnerabilities.0.cve": null,
+    "vulnerabilities.0.title": "HTTP Server Type and Version",
+    "unmapped.service": "www",
+    "device.hostname": "web01"
+   }
+  },
+  {
+   "name": "achado crítico corrigido (FIXED, sintético)",
+   "input": "{\"asset\":{\"hostname\":\"PC-0001\",\"uuid\":\"00000000-0000-4000-8000-0000000000f3\",\"ipv4\":\"10.0.0.15\",\"operating_system\":[\"Microsoft Windows 11 Pro\"]},\"plugin\":{\"id\":500123,\"name\":\"Google Chrome < 129.0.6668.89 Multiple Vulnerabilities\",\"family\":\"Windows\",\"type\":\"local\",\"cve\":[\"CVE-2024-9369\",\"CVE-2024-9370\"],\"cvss3_base_score\":9.8,\"cvss3_vector\":{\"raw\":\"AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H\"},\"exploit_available\":true,\"has_patch\":true,\"solution\":\"Upgrade to Google Chrome version 129.0.6668.89 or later.\",\"synopsis\":\"A web browser installed on the remote Windows host is affected by multiple vulnerabilities.\",\"risk_factor\":\"critical\",\"vpr\":{\"score\":8.4},\"epss_score\":1.2},\"port\":{\"port\":0,\"protocol\":\"TCP\"},\"severity\":\"critical\",\"severity_id\":4,\"state\":\"FIXED\",\"first_found\":\"2026-09-20T10:00:00.000Z\",\"last_found\":\"2026-10-07T22:00:00.000Z\",\"last_fixed\":\"2026-10-08T03:00:00.000Z\",\"indexed\":\"2026-10-08T03:05:00.000Z\",\"source\":\"AGENT\",\"finding_id\":\"00000000-0000-4000-8000-0000000000f4\"}",
+   "expect": {
+    "class_uid": 2002,
+    "activity_id": 3,
+    "activity_name": "Close",
+    "status": "Resolved",
+    "severity_id": 5,
+    "vulnerabilities.0.cve": "CVE-2024-9369",
+    "vulnerabilities.0.is_exploit_available": true,
+    "unmapped.last_fixed": "2026-10-08T03:00:00.000Z",
+    "dst_endpoint.port": null
+   }
+  },
+  {
+   "name": "achado reaberto só com IP (REOPENED, sintético)",
+   "input": "{\"asset\":{\"uuid\":\"00000000-0000-4000-8000-0000000000f5\",\"ipv4\":\"10.0.5.20\"},\"plugin\":{\"id\":51192,\"name\":\"SSL Certificate Cannot Be Trusted\",\"family\":\"General\",\"type\":\"remote\",\"cvss3_base_score\":6.5,\"risk_factor\":\"medium\",\"synopsis\":\"The SSL certificate for this service cannot be trusted.\"},\"port\":{\"port\":8443,\"protocol\":\"TCP\",\"service\":\"www\"},\"severity\":\"medium\",\"severity_id\":2,\"state\":\"REOPENED\",\"first_found\":\"2025-01-10T08:00:00.000Z\",\"last_found\":\"2026-10-08T06:00:00.000Z\",\"finding_id\":\"00000000-0000-4000-8000-0000000000f6\"}",
+   "expect": {
+    "activity_id": 2,
+    "status_detail": "REOPENED",
+    "severity_id": 3,
+    "device.ip": "10.0.5.20",
+    "device.hostname": null,
+    "message": "SSL Certificate Cannot Be Trusted em 10.0.5.20"
+   }
+  }
+ ]
+}

@@ -1,0 +1,898 @@
+{
+ "slug": "watchguard-firebox-syslog",
+ "name": "WatchGuard Firebox · syslog nativo (tráfego, proxy e eventos)",
+ "vendor": "WatchGuard",
+ "product": "Firebox (Fireware OS)",
+ "description": "Log do Firebox no formato 'Syslog' nativo: msg_id=\"XXXX-XXXX\" seguido do registro posicional (Allow/Deny, interfaces, protocolo, IP/porta de origem e destino), pares chave=\"valor\" e a política entre parênteses. Aceita com ou sem cabeçalho syslog (inclusive as opções 'número de série' e 'data/hora' do Firebox) e a visão do Traffic Monitor/Log Manager colada (data, origem, destino, serviço/proto...). Tráfego vira Network Activity, requisições de proxy HTTP/HTTPS viram HTTP Activity, logins viram Authentication e os demais eventos com msg_id viram Event Log Activity. Feito pela documentação (Log Catalog e Help Center) — validar com amostra real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "re": "msg_id=\"[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}\""
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "set",
+   "to": "line",
+   "value": {
+    "first": [
+     "sl.msg",
+     "$raw"
+    ]
+   }
+  },
+  {
+   "op": "regex",
+   "from": "line",
+   "to": "tm",
+   "optional": true,
+   "name": "visão Traffic Monitor",
+   "when": {
+    "path": "line",
+    "re": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} "
+   },
+   "pattern": "^(?P<tm_time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) (?:(?P<member>\\S+) )?(?P<disp>Allow|Deny) (?P<src_ip>[0-9A-Fa-f.:]+) (?P<dst_ip>[0-9A-Fa-f.:]+) (?P<service>[\\w.-]+)/(?P<proto>[A-Za-z0-9-]+) (?:(?P<src_port>\\d+) (?P<dst_port>\\d+) )?(?P<in_if>\\S+) (?P<out_if>\\S+) (?P<conn_action>.*?) (?:(?P<pkt_len>\\d+) (?P<ttl>\\d+) )?\\((?P<policy>[^()]*-\\d{2})\\)(?P<kvs>.*)$"
+  },
+  {
+   "op": "regex",
+   "from": "line",
+   "to": "h",
+   "optional": true,
+   "name": "msg_id",
+   "when": {
+    "path": "tm",
+    "exists": false
+   },
+   "pattern": "^(?P<hdr>.*?)msg_id=\\\"(?P<msg_id>[0-9A-Fa-f]{4}-?[0-9A-Fa-f]{4})\\\"\\s*(?P<body>.*)$"
+  },
+  {
+   "op": "regex",
+   "from": "h.hdr",
+   "to": "hd",
+   "optional": true,
+   "name": "cabeçalho do Firebox",
+   "pattern": "^\\s*(?:(?P<mon>[A-Z][a-z]{2}) +(?P<day>\\d{1,2}) (?P<hms>\\d{2}:\\d{2}:\\d{2}) (?P<year>\\d{4}) )?(?:(?P<fw_host>[\\w.\\-]+) )?(?:(?P<serial>[0-9A-F]{10,16}) )?(?:\\((?P<fw_time>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\) )?(?:(?P<facility>local\\d\\.\\w+) )?(?P<proc>[\\w-]+)(?:\\[(?P<pid>\\d+)\\])?: ?$"
+  },
+  {
+   "op": "regex",
+   "from": "h.body",
+   "to": "w",
+   "optional": true,
+   "name": "registro de tráfego",
+   "pattern": "^(?P<disp>Allow|Deny)\\s+(?P<in_if>\\S+)\\s+(?P<out_if>\\S+)\\s+(?:(?P<pkt_len>\\d+)\\s+)?(?P<proto>[A-Za-z][\\w-]*|\\d+)\\s+(?:(?P<iph_len>\\d+)\\s+(?P<ttl>\\d+)\\s+)?(?P<src_ip>[0-9A-Fa-f.:]*[0-9A-Fa-f])\\s+(?P<dst_ip>[0-9A-Fa-f.:]*[0-9A-Fa-f])\\s+(?:(?P<src_port>\\d+)\\s+(?P<dst_port>\\d+)(?:\\s+|$))?(?P<rest>.*?)\\s*(?:\\((?P<policy>[^()]*-\\d{2})\\))?\\s*$"
+  },
+  {
+   "op": "set",
+   "to": "t",
+   "value": {
+    "first": [
+     "tm",
+     "w"
+    ]
+   }
+  },
+  {
+   "op": "kv",
+   "from": {
+    "first": [
+     "tm.kvs",
+     "h.body"
+    ]
+   },
+   "to": "kv",
+   "mode": "simple",
+   "optional": true
+  },
+  {
+   "op": "regex",
+   "from": {
+    "first": [
+     "kv.tcp_info",
+     "w.rest"
+    ]
+   },
+   "to": "tcp",
+   "optional": true,
+   "pattern": "offset (?P<tcp_offset>\\d+) (?P<tcp_flags>[A-Z]+) (?P<tcp_seq>\\d+) win (?P<tcp_window>\\d+)"
+  },
+  {
+   "op": "set",
+   "to": "mid",
+   "value": {
+    "first": [
+     "h.msg_id",
+     "kv.msg_id"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "c1",
+   "value": {
+    "regex": "^([0-9A-Fa-f]{4})-?[0-9A-Fa-f]{4}$",
+    "path": "mid",
+    "type": "upper"
+   }
+  },
+  {
+   "op": "set",
+   "to": "c2",
+   "value": {
+    "regex": "^[0-9A-Fa-f]{4}-?([0-9A-Fa-f]{4})$",
+    "path": "mid",
+    "type": "upper"
+   }
+  },
+  {
+   "op": "set",
+   "to": "code",
+   "value": {
+    "template": "{c1}-{c2}",
+    "strict": true
+   }
+  },
+  {
+   "op": "regex",
+   "from": "h.body",
+   "to": "au",
+   "optional": true,
+   "when": {
+    "path": "t",
+    "exists": false
+   },
+   "pattern": "user \\[?(?P<user>[^\\s\\]]+?)(?:@(?P<auth_server>[^@\\s\\]]+))?\\]? from (?P<ip>[0-9A-Fa-f.:]+[0-9A-Fa-f])(?:.*?(?:rejected, |reason[=:] ?)(?P<reason>.+))?"
+  },
+  {
+   "op": "set",
+   "to": "sev_virus",
+   "value": {
+    "const": 4
+   },
+   "when": {
+    "path": "kv.virus",
+    "exists": true
+   }
+  },
+  {
+   "op": "set",
+   "to": "http_host",
+   "value": {
+    "first": [
+     "kv.dstname",
+     "kv.sni",
+     "kv.host"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "http_path",
+   "value": {
+    "first": [
+     {
+      "path": "kv.arg",
+      "type": "nil"
+     },
+     {
+      "path": "kv.path",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "scheme",
+   "value": {
+    "first": [
+     {
+      "lookup": "c1",
+      "table": {
+       "2CFF": "https"
+      }
+     },
+     {
+      "lookup": "t.dst_port",
+      "table": {
+       "443": "https"
+      }
+     },
+     {
+      "const": "http"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "url",
+   "value": {
+    "first": [
+     {
+      "template": "{scheme}://{http_host}{http_path}",
+      "strict": true
+     },
+     {
+      "template": "{scheme}://{http_host}/",
+      "strict": true
+     }
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "hd.fw_time",
+     "type": "time"
+    },
+    {
+     "template": "{hd.mon} {hd.day} {hd.year} {hd.hms}",
+     "strict": true,
+     "type": "strptime:%b %d %Y %H:%M:%S"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    },
+    {
+     "path": "tm.tm_time",
+     "type": "strptime:%Y-%m-%d %H:%M:%S"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "WatchGuard"
+  },
+  "metadata.product.name": {
+   "const": "Firebox"
+  },
+  "metadata.event_code": "code",
+  "metadata.log_name": {
+   "first": [
+    "hd.proc",
+    "sl.app",
+    {
+     "path": "kv.proc_id"
+    }
+   ]
+  },
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "category_uid": {
+   "const": 0
+  },
+  "category_name": {
+   "const": "Uncategorized"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "activity_name": {
+   "const": "Other"
+  },
+  "severity_id": {
+   "first": [
+    {
+     "lookup": "kv.severity",
+     "table": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5
+     }
+    },
+    "sev_virus",
+    {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": 1,
+      "Deny": 2
+     }
+    },
+    {
+     "const": 1
+    }
+   ]
+  },
+  "message": {
+   "first": [
+    "kv.msg",
+    {
+     "template": "{t.disp} {t.proto} {t.src_ip}:{t.src_port} -> {t.dst_ip}:{t.dst_port} ({t.policy})",
+     "strict": true
+    },
+    {
+     "template": "{t.disp} {t.proto} {t.src_ip} -> {t.dst_ip} ({t.policy})",
+     "strict": true
+    },
+    {
+     "path": "h.body",
+     "type": "nil"
+    }
+   ]
+  },
+  "device.hostname": {
+   "first": [
+    "hd.fw_host",
+    "sl.hostname",
+    "tm.member"
+   ]
+  },
+  "device.uid": "hd.serial",
+  "disposition": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": "Allowed",
+    "Deny": "Blocked"
+   }
+  },
+  "disposition_id": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": 1,
+    "Deny": 2
+   }
+  },
+  "action": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": "Allowed",
+    "Deny": "Denied"
+   }
+  },
+  "action_id": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": 1,
+    "Deny": 2
+   }
+  },
+  "src_endpoint.ip": {
+   "path": "t.src_ip",
+   "type": "ip"
+  },
+  "src_endpoint.port": {
+   "path": "t.src_port",
+   "type": "int"
+  },
+  "src_endpoint.interface_name": "t.in_if",
+  "src_endpoint.location.country": "kv.geo_src",
+  "dst_endpoint.ip": {
+   "path": "t.dst_ip",
+   "type": "ip"
+  },
+  "dst_endpoint.port": {
+   "path": "t.dst_port",
+   "type": "int"
+  },
+  "dst_endpoint.interface_name": "t.out_if",
+  "dst_endpoint.location.country": "kv.geo_dst",
+  "dst_endpoint.hostname": "http_host",
+  "connection_info.protocol_name": {
+   "path": "t.proto",
+   "type": "lower"
+  },
+  "traffic.bytes_out": {
+   "path": "kv.sent_bytes",
+   "type": "int"
+  },
+  "traffic.bytes_in": {
+   "path": "kv.rcvd_bytes",
+   "type": "int"
+  },
+  "traffic.packets_out": {
+   "path": "kv.sent_pkts",
+   "type": "int"
+  },
+  "traffic.packets_in": {
+   "path": "kv.rcvd_pkts",
+   "type": "int"
+  },
+  "policy.name": {
+   "first": [
+    "t.policy",
+    "kv.policy"
+   ]
+  },
+  "rule.name": {
+   "first": [
+    "kv.proxy_act",
+    "kv.rule_name"
+   ]
+  },
+  "actor.user.name": {
+   "path": "kv.src_user",
+   "type": "user"
+  },
+  "actor.user.full_name": "kv.src_user",
+  "finding_info.title": {
+   "first": [
+    "kv.signature_name",
+    "kv.virus"
+   ]
+  },
+  "finding_info.uid": "kv.signature_id",
+  "malware": {
+   "list": [
+    {
+     "object": {
+      "name": {
+       "path": "kv.virus"
+      }
+     }
+    }
+   ]
+  },
+  "file.name": {
+   "first": [
+    "kv.filename"
+   ]
+  },
+  "file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "path": "kv.md5",
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "path": "kv.md5"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "cases": [
+  {
+   "name": "trafego-fim",
+   "when": {
+    "all": [
+     {
+      "path": "t.disp",
+      "exists": true
+     },
+     {
+      "path": "code",
+      "in": [
+       "3000-0151",
+       "3000-0176"
+      ]
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4001
+    },
+    "class_name": {
+     "const": "Network Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "const": 2
+    },
+    "activity_name": {
+     "const": "Close"
+    }
+   }
+  },
+  {
+   "name": "proxy-http",
+   "when": {
+    "all": [
+     {
+      "path": "t.disp",
+      "exists": true
+     },
+     {
+      "path": "http_host",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4002
+    },
+    "class_name": {
+     "const": "HTTP Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "lookup": "kv.op",
+     "table": {
+      "CONNECT": 1,
+      "DELETE": 2,
+      "GET": 3,
+      "HEAD": 4,
+      "OPTIONS": 5,
+      "POST": 6,
+      "PUT": 7,
+      "TRACE": 8,
+      "PATCH": 9
+     },
+     "default": 99
+    },
+    "activity_name": {
+     "first": [
+      {
+       "path": "kv.op",
+       "type": "upper"
+      },
+      {
+       "const": "Other"
+      }
+     ]
+    },
+    "http_request.http_method": {
+     "path": "kv.op",
+     "type": "upper"
+    },
+    "http_request.url.url_string": "url",
+    "http_request.url.hostname": "http_host",
+    "http_request.url.path": "http_path",
+    "http_request.url.scheme": "scheme",
+    "http_request.url.categories": {
+     "path": "kv.cats",
+     "type": "split:,"
+    },
+    "tls.sni": "kv.sni"
+   }
+  },
+  {
+   "name": "trafego",
+   "when": {
+    "path": "t.disp",
+    "exists": true
+   },
+   "map": {
+    "class_uid": {
+     "const": 4001
+    },
+    "class_name": {
+     "const": "Network Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": 1,
+      "Deny": 5
+     }
+    },
+    "activity_name": {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": "Open",
+      "Deny": "Refuse"
+     }
+    }
+   }
+  },
+  {
+   "name": "autenticacao",
+   "when": {
+    "all": [
+     {
+      "path": "code",
+      "in": [
+       "3E00-0002",
+       "1100-0004",
+       "2500-0000",
+       "3E00-0003",
+       "1100-0005",
+       "5000-0001",
+       "3E00-0004",
+       "2500-0001"
+      ]
+     },
+     {
+      "path": "au.user",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3002
+    },
+    "class_name": {
+     "const": "Authentication"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": 1,
+      "1100-0004": 1,
+      "2500-0000": 1,
+      "3E00-0003": 1,
+      "1100-0005": 1,
+      "5000-0001": 1,
+      "3E00-0004": 2,
+      "2500-0001": 2
+     }
+    },
+    "activity_name": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": "Logon",
+      "1100-0004": "Logon",
+      "2500-0000": "Logon",
+      "3E00-0003": "Logon",
+      "1100-0005": "Logon",
+      "5000-0001": "Logon",
+      "3E00-0004": "Logoff",
+      "2500-0001": "Logoff"
+     }
+    },
+    "status": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": "Success",
+      "1100-0004": "Success",
+      "2500-0000": "Success",
+      "3E00-0004": "Success",
+      "2500-0001": "Success",
+      "3E00-0003": "Failure",
+      "1100-0005": "Failure",
+      "5000-0001": "Failure"
+     }
+    },
+    "status_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": 1,
+      "1100-0004": 1,
+      "2500-0000": 1,
+      "3E00-0004": 1,
+      "2500-0001": 1,
+      "3E00-0003": 2,
+      "1100-0005": 2,
+      "5000-0001": 2
+     }
+    },
+    "severity_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0003": 2,
+      "1100-0005": 2,
+      "5000-0001": 2
+     },
+     "default": 1
+    },
+    "status_detail": "au.reason",
+    "user.name": "au.user",
+    "auth_protocol": "au.auth_server",
+    "src_endpoint.ip": {
+     "path": "au.ip",
+     "type": "ip"
+    }
+   }
+  },
+  {
+   "name": "evento",
+   "when": {
+    "path": "code",
+    "exists": true
+   },
+   "map": {
+    "class_uid": {
+     "const": 1008
+    },
+    "class_name": {
+     "const": "Event Log Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "activity_name": {
+     "const": "Other"
+    }
+   }
+  }
+ ],
+ "unmapped": [
+  "kv",
+  "tcp"
+ ],
+ "unmapped_drop": [
+  "msg_id",
+  "msg",
+  "policy",
+  "proxy_act",
+  "rule_name",
+  "cats",
+  "op",
+  "dstname",
+  "arg",
+  "host",
+  "path",
+  "sni",
+  "signature_name",
+  "signature_id",
+  "severity",
+  "virus",
+  "md5",
+  "filename",
+  "sent_bytes",
+  "rcvd_bytes",
+  "sent_pkts",
+  "rcvd_pkts",
+  "src_user",
+  "geo_src",
+  "geo_dst",
+  "tcp_info"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "tráfego permitido (cabeçalho com série e data do Firebox)",
+   "input": "DEV01 0011223344556 (2022-09-01T13:58:33) firewall: msg_id=\"3000-0148\" Allow External Inside 44 tcp 20 238 10.11.12.13 192.168.1.10 58325 60951 offset 6 S 3172487743 win 4 geo_src=\"USA\" geo_dst=\"USA\" (Inbound Policy-00)",
+   "expect": {
+    "time": "2022-09-01T13:58:33.000Z",
+    "class_uid": 4001,
+    "activity_id": 1,
+    "metadata.event_code": "3000-0148",
+    "disposition": "Allowed",
+    "src_endpoint.ip": "10.11.12.13",
+    "src_endpoint.port": 58325,
+    "dst_endpoint.ip": "192.168.1.10",
+    "dst_endpoint.port": 60951,
+    "connection_info.protocol_name": "tcp",
+    "policy.name": "Inbound Policy-00",
+    "device.hostname": "DEV01",
+    "device.uid": "0011223344556",
+    "src_endpoint.location.country": "USA",
+    "unmapped.tcp_flags": "S"
+   }
+  },
+  {
+   "name": "proxy SMTP (exemplo do Log Catalog, cabeçalho BSD com ano)",
+   "input": "May 30 06:36:45 2014 gary_xtmv local1.info smtp-proxy[2861]: msg_id=\"1BFF-0027\" Allow 1-Trusted 0-External tcp 10.0.1.2 100.100.100.3 50976 25 msg=\"ProxyAllow: SMTP DLP oject too large\" proxy_act=\"SMTP-Outgoing.1\" sender=\"ghong@watchguard.com\" recipients=\"wg@localhost\" error=\"DLP scan limit (524288) exceeded\" filename=\"2M-dlp-violates-end.txt\" (SMTP-proxy-00)",
+   "expect": {
+    "time": "2014-05-30T06:36:45.000Z",
+    "class_uid": 4001,
+    "metadata.event_code": "1BFF-0027",
+    "message": "ProxyAllow: SMTP DLP oject too large",
+    "dst_endpoint.port": 25,
+    "rule.name": "SMTP-Outgoing.1",
+    "policy.name": "SMTP-proxy-00",
+    "device.hostname": "gary_xtmv",
+    "metadata.log_name": "smtp-proxy",
+    "unmapped.sender": "ghong@watchguard.com",
+    "file.name": "2M-dlp-violates-end.txt"
+   }
+  },
+  {
+   "name": "IPS bloqueou (3000-0150) com cabeçalho syslog",
+   "input": "<142>2026-10-08T12:00:01-03:00 FBX-01 firewall: msg_id=\"3000-0150\" Deny 1-Trusted 0-External 1440 tcp 20 61 10.0.1.2 192.168.130.126 55810 80 offset 5 A 447868619 win 54 signature_name=\"EXPLOIT Apple QuickTime FLIC Animation file buffer overflow -1-2\" signature_cat=\"Misc\" signature_id=\"1112464\" severity=\"4\" sig_vers=\"18.124\" msg=\"IPS detected\" (HTTP-00)",
+   "expect": {
+    "time": "2026-10-08T15:00:01.000Z",
+    "class_uid": 4001,
+    "activity_id": 5,
+    "disposition": "Blocked",
+    "action": "Denied",
+    "severity_id": 4,
+    "finding_info.title": "EXPLOIT Apple QuickTime FLIC Animation file buffer overflow -1-2",
+    "finding_info.uid": "1112464",
+    "message": "IPS detected",
+    "device.hostname": "FBX-01",
+    "policy.name": "HTTP-00"
+   }
+  },
+  {
+   "name": "WebBlocker: requisição HTTP com categoria (1AFF-0021)",
+   "input": "<142>2026-10-08T12:00:01-03:00 FBX-01 http-proxy[2210]: msg_id=\"1AFF-0021\" Allow 1-Trusted 0-External tcp 10.0.1.2 50.16.210.117 50790 80 msg=\"ProxyAllow: HTTP Request categories\" proxy_act=\"HTTP-Client.2\" cats=\"Reference Materials\" op=\"GET\" dstname=\"www.walkscore.com\" arg=\"/\" (HTTP-proxy-00)",
+   "expect": {
+    "class_uid": 4002,
+    "activity_id": 3,
+    "http_request.http_method": "GET",
+    "http_request.url.url_string": "http://www.walkscore.com/",
+    "http_request.url.hostname": "www.walkscore.com",
+    "http_request.url.categories": [
+     "Reference Materials"
+    ],
+    "disposition": "Allowed",
+    "rule.name": "HTTP-Client.2"
+   }
+  },
+  {
+   "name": "proxy HTTP bloqueou vírus (3000-0175)",
+   "input": "<142>2026-10-08T12:00:01-03:00 FBX-01 http-proxy[2210]: msg_id=\"3000-0175\" Deny Trusted External tcp 10.0.1.2 100.100.100.11 37930 80 msg=\"ProxyDrop: HTTP Virus found\" proxy_act=\"HTTP-Client.Standard.1\" md5=\"69630e4574ec6798239b091cda43dca0\" virus=\"EICAR-Test-File (not a virus)\" host=\"100.100.100.11\" path=\"/eicar.com.txt\" (HTTP-proxy-00)",
+   "expect": {
+    "class_uid": 4002,
+    "disposition": "Blocked",
+    "severity_id": 4,
+    "malware.0.name": "EICAR-Test-File (not a virus)",
+    "http_request.url.url_string": "http://100.100.100.11/eicar.com.txt",
+    "file.hashes.0.value": "69630e4574ec6798239b091cda43dca0",
+    "policy.name": "HTTP-proxy-00"
+   }
+  },
+  {
+   "name": "proxy HTTPS com SNI (2CFF-0000)",
+   "input": "<142>2026-10-08T12:00:01-03:00 FBX-01 https-proxy[2211]: msg_id=\"2CFF-0000\" Allow 1-Trusted 0-External tcp 10.0.1.2 173.194.33.184 59277 443 msg=\"HTTPS Request\" proxy_act=\"HTTPS-Client.Standard.3\" sni=\"www.gstatic.com\" cn=\"*.google.com\" cert_issuer=\"CN=olympus.wgti.net,OU=QA,O=WGTI,L=Seattle,ST=WA,C=US\" cert_subject=\"CN=*.google.com,O=Google Inc,L=Mountain View,ST=California,C=US\" action=\"allow\" (HTTPS-proxy-00)",
+   "expect": {
+    "class_uid": 4002,
+    "activity_id": 99,
+    "http_request.url.url_string": "https://www.gstatic.com/",
+    "http_request.url.scheme": "https",
+    "tls.sni": "www.gstatic.com",
+    "unmapped.cn": "*.google.com"
+   }
+  },
+  {
+   "name": "visão do Traffic Monitor: fim de conexão do proxy (3000-0176)",
+   "input": "2024-03-29 18:00:54 Allow 10.0.1.2 100.100.100.11 http/tcp 42017 80 Trusted External Allowed (HTTP-proxy.1-00) proc_id=\"firewall\" rc=\"406\" msg_id=\"3000-0176\" src_ip_nat=\"100.100.100.10\" flags=\"SDdF\" duration=\"14\" sent_pkts=\"10\" rcvd_pkts=\"5\" sent_bytes=\"564\" rcvd_bytes=\"785\"",
+   "expect": {
+    "time": "2024-03-29T18:00:54.000Z",
+    "class_uid": 4001,
+    "activity_id": 2,
+    "metadata.event_code": "3000-0176",
+    "traffic.bytes_out": 564,
+    "traffic.bytes_in": 785,
+    "traffic.packets_out": 10,
+    "src_endpoint.port": 42017,
+    "policy.name": "HTTP-proxy.1-00",
+    "unmapped.src_ip_nat": "100.100.100.10"
+   }
+  },
+  {
+   "name": "evento do sistema: bloqueio temporário de host (3001-1001)",
+   "input": "<142>2026-10-08T12:00:01-03:00 FBX-01 firewall: msg_id=\"3001-1001\" Temporarily blocking host 203.0.113.50",
+   "expect": {
+    "class_uid": 1008,
+    "metadata.event_code": "3001-1001",
+    "message": "Temporarily blocking host 203.0.113.50",
+    "device.hostname": "FBX-01",
+    "severity_id": 1
+   }
+  }
+ ]
+}

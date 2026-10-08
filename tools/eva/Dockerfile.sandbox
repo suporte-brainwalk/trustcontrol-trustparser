@@ -1,0 +1,7 @@
+# Sandbox da EVA: só o necessário para o agente (CLI montado do servidor) ler/editar a cópia do repositório.
+# Sem git, sem Docker, sem segredos do Trust Parser, sem banco; rede só via proxy eva-egress (openrouter.ai).
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 10001 --create-home --home-dir /home/eva eva && mkdir -p /work/repo /work/pedido /opt/eva
+USER 10001
+WORKDIR /work/repo

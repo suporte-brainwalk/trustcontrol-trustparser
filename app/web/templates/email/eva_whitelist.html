@@ -1,0 +1,12 @@
+{% extends "email/_frame.html" %}
+{% block body %}
+<tr><td style="padding:18px 20px 6px 20px;font-size:15px;line-height:1.6;color:#1f2d3d;">
+  <p style="margin:0 0 10px 0;font-weight:700;color:#1f4c81;">Lista de autorizados da EVA alterada</p>
+  <p style="margin:0 0 10px 0;"><b>{{ email }}</b> foi {{ verb }} lista de pessoas que podem falar com a EVA
+    {% if role %}(papel: {{ 'dono' if role == 'owner' else 'membro' }}){% endif %}{% if extra %} — {{ extra }}{% endif %}.</p>
+  <p style="margin:0 0 10px 0;">Alteração feita por <b>{{ by }}</b>{% if ip %} (IP {{ ip }}){% endif %}.</p>
+  <p style="margin:0 0 10px 0;">Se você não reconhece esta mudança, revise a lista em
+    <a href="{{ base_url }}/admin/eva" style="color:#1f4c81;">{{ base_url }}/admin/eva</a>.</p>
+  <p style="margin:0;color:#566573;font-size:13px;">A EVA atende pelo e-mail {{ mailbox }} e pela API do Trust Parser.</p>
+</td></tr>
+{% endblock %}

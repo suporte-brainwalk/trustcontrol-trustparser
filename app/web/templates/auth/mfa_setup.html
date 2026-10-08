@@ -1,0 +1,22 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Ativar verificação em duas etapas{% endblock %}
+{% block box %}
+{% if codes %}
+  <h2>Guarde seus códigos de recuperação</h2>
+  <div class="sub">Cada código funciona uma única vez, caso você perca o acesso ao aplicativo autenticador. Eles não serão exibidos novamente.</div>
+  <div class="codes mono" data-testid="recovery-codes">{% for c in codes %}<span>{{ c }}</span>{% endfor %}</div>
+  <a class="btn p block" href="{{ url_for('index') }}">Concluir e entrar</a>
+{% else %}
+  <h2>Ativar verificação em duas etapas</h2>
+  <div class="sub">{% if required %}A Trust Control exige a verificação em duas etapas para administradores. {% endif %}Escaneie o QR code com Google Authenticator, Microsoft Authenticator ou similar.</div>
+  <div class="qr"><img src="data:image/png;base64,{{ qr }}" alt="QR code para o aplicativo autenticador" width="200" height="200"></div>
+  <div class="note">Não consegue escanear? Digite a chave: <span class="mono" data-testid="totp-secret">{{ secret }}</span></div>
+  <form method="post" action="{{ url_for('auth.mfa_setup') }}" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="fg"><label class="f" for="code">Código de 6 dígitos gerado pelo aplicativo</label>
+      <input class="i" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+    <button class="btn p block" type="submit">Confirmar e ativar</button>
+  </form>
+  {% if not required %}<div class="note"><a href="{{ url_for('index') }}">Agora não</a></div>{% endif %}
+{% endif %}
+{% endblock %}

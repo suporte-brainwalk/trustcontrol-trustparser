@@ -1,0 +1,32 @@
+{% from "_macros.html" import theme_toggle, flashes %}<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Entrar{% endblock %} · Trust Parser</title>
+<link rel="icon" href="{{ url_for('static', filename='brand/favicon.png') }}">
+<script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=11">
+</head>
+<body>
+<div class="login">
+  <div class="login-hero">
+    <div class="hero-kicker">TRUST SOC 360</div>
+    <div>
+      <h1>Alertas de vulnerabilidade só do que existe no seu parque.</h1>
+      <p>Monitoramos os boletins oficiais dos fabricantes a cada minuto e avisamos por e-mail, na hora, quem realmente usa a tecnologia afetada.</p>
+      <div class="hero-pills"><span>⏱ Varredura a cada minuto</span><span>🎯 Correlação por inventário</span><span>🔒 Tenants isolados</span></div>
+    </div>
+    <div class="hero-foot">Trust Control · Cibersegurança (MSSP / MDR)</div>
+  </div>
+  <div class="login-form">{{ theme_toggle() }}<div class="login-box">
+    <img class="login-logo" src="{{ url_for('static', filename='brand/trust-logo.png') }}" alt="Trust Control" width="180" height="34">
+    {{ flashes() }}
+    {% block box %}{% endblock %}
+  </div></div>
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
+</body>
+</html>

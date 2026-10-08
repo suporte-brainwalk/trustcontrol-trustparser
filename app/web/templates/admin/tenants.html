@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Tenants{% endblock %}{% block crumb %}Cadastros{% endblock %}{% block heading %}Tenants{% endblock %}
+{% block actions %}<button class="btn p" type="button" data-open-dialog="dlg-new-tenant">+ Novo tenant</button>{% endblock %}
+{% block content %}
+<div class="card"><div class="tw"><table class="t">
+  <tr><th>Tenant</th><th>Situação</th><th>Fontes</th><th>IPs liberados</th><th>Destinos</th><th>Pessoas</th><th>Último evento</th><th></th></tr>
+  {% for t in rows %}{% set s = stats[t.id] %}<tr class="{{ 'muted-row' if t.status == 'suspended' }}">
+    <td><a href="{{ url_for('admin.tenant', tid=t.id) }}"><b>{{ t.name }}</b></a>{% if t.internal %} <span class="tag g">interno Trust</span>{% endif %}<div class="sm muted">{{ t.segment or '' }}</div></td>
+    <td><span class="st {{ 'ok' if t.status == 'active' else 'warn' }}">{{ 'Ativo' if t.status == 'active' else 'Suspenso' }}</span></td>
+    <td>{{ s.sources }}</td><td>{{ s.ips }}</td><td>{{ s.dests }}</td><td>{{ s.users }}</td><td class="sm">{{ s.last|dt }}</td>
+    <td class="sm"><a href="{{ url_for('admin.tenant', tid=t.id) }}">abrir →</a></td></tr>
+  {% else %}<tr><td colspan="8" class="empty-state">Nenhum tenant. Clique em “+ Novo tenant”.</td></tr>{% endfor %}
+</table></div></div>
+<dialog id="dlg-new-tenant"><form method="post" action="{{ url_for('admin.tenant_new') }}">{{ csrf() }}
+  <div class="hd"><h3>Novo tenant (cliente)</h3><button class="x" type="button" data-close-dialog aria-label="Fechar">×</button></div>
+  <div class="bd">
+    <div class="fg"><label class="f" for="nt-name">Nome *</label><input class="i" id="nt-name" name="name" required maxlength="160"></div>
+    <div class="fg"><label class="f" for="nt-seg">Segmento</label><input class="i" id="nt-seg" name="segment" maxlength="60"></div>
+    <label class="fg row" style="gap:8px"><input type="checkbox" name="internal" value="1"> <span>Tenant <b>interno da Trust</b></span></label>
+    <div class="note">Depois de criar: cadastre as fontes (e os IPs que enviam syslog), os destinos de saída e as pessoas com acesso.</div>
+  </div>
+  <div class="ft"><button class="btn o" type="button" data-close-dialog>Cancelar</button><button class="btn p" type="submit">Criar</button></div>
+</form></dialog>
+{% endblock %}

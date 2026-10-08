@@ -1,0 +1,86 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}API{% endblock %}{% block crumb %}Sistema{% endblock %}{% block heading %}API · chaves de acesso{% endblock %}
+{% block actions %}<button class="btn p" type="button" data-open-dialog="dlg-api-new">+ Nova chave</button>{% endblock %}
+{% block content %}
+{% if new_secret %}
+<div class="card api-secret" style="margin-bottom:16px"><div class="hd"><h3>🔑 Chave criada · {{ new_key.name }}</h3></div><div class="bd">
+  <p style="margin:0 0 10px"><b>Copie agora.</b> Esta é a única vez que a chave completa aparece — o portal guarda só uma assinatura dela
+    e não consegue mostrá-la de novo. Se perder, revogue e crie outra.</p>
+  <div class="row" style="gap:8px;flex-wrap:nowrap"><input class="i mono" id="api-secret" value="{{ new_secret }}" readonly aria-label="Chave de API" style="flex:1;min-width:0">
+    <button class="btn p" type="button" data-copy="api-secret">Copiar</button></div>
+  <p class="sm muted" style="margin:10px 0 0">Uso: cabeçalho <span class="mono">Authorization: Bearer {{ new_secret[:17] }}…</span> nas chamadas a
+    <span class="mono">{{ api_base }}</span>.</p>
+</div></div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px"><div class="bd">
+  <p style="margin:0">Chaves para sistemas da Trust Control usarem o Trust Parser pela API em <span class="mono">{{ api_base }}</span>
+    (acessível só do Brasil). Cada chave tem <b>escopo</b> (global ou um tenant), <b>permissões</b> por tipo de dado, validade e IPs permitidos.
+    Chaves de <b>leitura</b> consultam os dados; chaves de <b>escrita</b> fazem pela API o que o admin faz na tela (tenants, fontes, IPs do firewall,
+    destinos, parsers, uploads, Estúdio IA, pessoas e EVA), com as mesmas regras — exigem IPs de origem, o seu código MFA e fazem no máximo
+    10 alterações por minuto. Toda criação, revogação, rotação e alteração feita pela API fica na auditoria.</p>
+  <p style="margin:10px 0 0"><a class="btn o sm" href="/api/docs">Documentação da API (Swagger) →</a></p>
+</div></div>
+
+<div class="card"><div class="hd"><h3>Chaves</h3><span class="sm muted" style="margin-left:6px">{{ keys|length }}</span></div>
+  <div class="tw"><table class="t">
+    <tr><th>Sistema</th><th>Escopo</th><th>Permissões</th><th>Validade</th><th>Último uso</th><th>Uso 30 dias</th><th>Situação</th><th></th></tr>
+    {% for k in keys %}{% set u = usage.get(k.id, {}) %}{% set ativa = k.revoked_at is none and k.expires_at > now %}
+    <tr class="{{ '' if ativa else 'muted-row' }}">
+      <td><b>{{ k.name }}</b>{% if k.protected %} <span class="tag g" title="{{ k.system_label }}">🔒 sistema</span>{% endif %}<div class="sm muted mono">tpk_live_{{ k.prefix }}…</div>{% if k.owner_email %}<div class="sm muted">{{ k.owner_email }}</div>{% endif %}</td>
+      <td>{% if k.tenant %}<span class="tag">{{ k.tenant.name }}</span>{% else %}<span class="tag g">global</span>{% endif %}
+        {% if k.allowed_ips %}<div class="sm muted">IPs: {{ k.allowed_ips|join(', ') }}</div>{% endif %}</td>
+      <td>{% if is_write(k.permissions) %}<span class="tag warn-tag" title="Pode alterar dados pelo portal">✎ escrita</span> {% endif %}
+        {% for p in k.permissions %}<span class="tag {{ 'warn-tag' if p in ('pessoas:ler', 'pessoas:gerenciar') or p in write_like }}" title="{{ permissions.get(p, p) }} ({{ p }})">{{ p.split(':')[0] }}{% if p.split(':')[1] != 'ler' %}:{{ p.split(':')[1] }}{% endif %}</span>{% endfor %}
+        <div class="sm muted">{{ k.rate_per_min }} req/min{% if is_write(k.permissions) %} · 10 alterações/min{% endif %}</div></td>
+      <td class="sm nowrap">{% if k.protected %}permanente{% else %}{{ k.expires_at|d }}{% if ativa %}<div class="muted">{{ (k.expires_at - now).days }} dias</div>{% endif %}{% endif %}</td>
+      <td class="sm">{{ k.last_used_at|dt if k.last_used_at else '—' }}{% if k.last_used_ip %}<div class="muted mono">{{ k.last_used_ip }}</div>{% endif %}</td>
+      <td class="sm">{{ u.get('total', 0) }}{% if u.get('erros') %}<div class="muted">{{ u.erros }} com erro</div>{% endif %}{% if u.get('alteracoes') %}<div class="muted">{{ u.alteracoes }} alteraç{{ 'ão' if u.alteracoes == 1 else 'ões' }}</div>{% endif %}</td>
+      <td>{% if k.revoked_at %}<span class="st err">Revogada</span><div class="sm muted">{{ k.revoked_at|dt }}</div>
+          {% elif k.expires_at <= now %}<span class="st warn">Expirada</span>
+          {% elif k.replaced_by %}<span class="st warn">Em troca</span><div class="sm muted">substituída; vale até {{ k.expires_at|d }}</div>
+          {% else %}<span class="st ok">Ativa</span>{% endif %}</td>
+      <td class="nowrap">{% if k.protected %}<span class="sm muted" title="Protegida pelo sistema: não pode ser revogada nem apagada.">protegida</span>{% elif ativa %}
+        {% if not k.replaced_by %}<form method="post" action="{{ url_for('admin.api_key_rotate', kid=k.id) }}" class="inline-form" data-confirm="Criar uma chave nova para “{{ k.name }}”? A atual continua valendo por mais 7 dias para a troca.">{{ csrf() }}{% if is_write(k.permissions) %}<input class="i mono mfa-mini" name="mfa_code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="MFA" aria-label="Código MFA para rotacionar" required> {% endif %}<button class="link-btn" type="submit">rotacionar</button></form> · {% endif %}
+        <form method="post" action="{{ url_for('admin.api_key_revoke', kid=k.id) }}" class="inline-form" data-confirm="Revogar a chave “{{ k.name }}”? Ela para de funcionar imediatamente e não pode ser reativada.">{{ csrf() }}<button class="link-btn danger" type="submit">revogar</button></form>
+      {% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="8" class="empty-state">Nenhuma chave criada. Use “+ Nova chave” para liberar um sistema.</td></tr>{% endfor %}
+  </table></div>
+  <div class="bd note" style="margin:0"><b>Rotacionar</b> cria uma chave nova com as mesmas permissões e mantém a atual por 7 dias, para trocar
+    sem interrupção. <b>Revogar</b> desliga na hora. O responsável recebe aviso 30 e 7 dias antes do vencimento.
+    Chaves marcadas com 🔒 <b>sistema</b> (a da EVA) são protegidas no próprio banco: não podem ser revogadas, apagadas nem
+    alteradas pelo portal; só a equipe técnica faz a troca de emergência no servidor.</div></div>
+
+<dialog id="dlg-api-new"><form method="post" action="{{ url_for('admin.api_key_create') }}">{{ csrf() }}
+  <div class="hd"><h3>Nova chave de API</h3><button class="x" type="button" data-close-dialog aria-label="Fechar">×</button></div>
+  <div class="bd">
+    <div class="two"><div class="fg"><label class="f" for="ak-name">Sistema que vai usar *</label><input class="i" id="ak-name" name="name" maxlength="120" required placeholder="Ex.: SIEM da Trust"></div>
+      <div class="fg"><label class="f" for="ak-owner">Responsável técnico (e-mail)</label><input class="i" id="ak-owner" name="owner_email" type="email" maxlength="254" placeholder="recebe aviso de vencimento"></div></div>
+    <div class="two"><div class="fg"><label class="f" for="ak-tenant">Escopo</label><select class="i" id="ak-tenant" name="tenant_id"><option value="">Global — todos os tenants</option>{% for t in tenants %}<option value="{{ t.id }}">Somente {{ t.name }}</option>{% endfor %}</select></div>
+      <div class="fg"><label class="f" for="ak-days">Validade</label><select class="i" id="ak-days" name="days"><option value="90">90 dias</option><option value="180">180 dias</option><option value="365" selected>1 ano</option><option value="730">2 anos</option></select></div></div>
+    <div class="fg"><span class="f">Leitura *</span><div class="checklist">
+      {% for p, label in read_perms.items() %}<label><input type="checkbox" name="permissions" value="{{ p }}" {{ 'checked' if p != 'pessoas:ler' }}><span><b>{{ label }}</b><br><span class="sm muted mono">{{ p }}</span></span></label>{% endfor %}
+    </div><div class="sm muted" style="margin-top:6px">“Pessoas” expõe nomes e e-mails dos contatos dos clientes: marque só se o sistema realmente precisar.</div></div>
+    <details class="fg api-write-perms"><summary class="f">Administração (escrita) — opcional</summary>
+      <div class="sm muted" style="margin:6px 0">Faz pela API o que o admin faz na tela, com as mesmas regras. Exige <b>IPs permitidos</b> e o
+        <b>seu código MFA</b> abaixo; limite de 10 alterações por minuto. Chave de um tenant só gerencia o que é do próprio tenant (fontes, IPs, destinos, uploads e pessoas).
+        Quem gerencia também lê a mesma área.</div>
+      <div class="checklist">
+      {% for p, label in write_perms.items() %}<label><input type="checkbox" name="permissions" value="{{ p }}"><span><b>{{ label }}</b><br><span class="sm muted mono">{{ p }}</span></span></label>{% endfor %}
+      </div>
+      <div class="sm muted" style="margin:10px 0 6px"><b>EVA</b> (só chave global). Conversar exige que o responsável técnico esteja na lista de autorizados da
+        EVA — ela atende como atende por e-mail; gerenciar exige que o responsável seja dono na lista.</div>
+      <div class="checklist">
+      {% for p, label in eva_perms.items() %}<label><input type="checkbox" name="permissions" value="{{ p }}"><span><b>{{ label }}</b><br><span class="sm muted mono">{{ p }}</span></span></label>{% endfor %}
+      </div>
+      <div class="fg" style="margin-top:10px"><label class="f" for="ak-mfa">Seu código MFA (obrigatório para escrita e EVA)</label>
+        <input class="i mono" id="ak-mfa" name="mfa_code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="000000" style="max-width:160px">
+        {% if not mfa_ok %}<div class="sm danger" style="margin-top:4px">Você ainda não ativou o MFA: ative em Minha conta para criar chaves de escrita.</div>{% endif %}</div>
+    </details>
+    <div class="two"><div class="fg"><label class="f" for="ak-ips">IPs permitidos (obrigatório para escrita)</label><textarea class="i mono" id="ak-ips" name="allowed_ips" rows="2" placeholder="um por linha: 200.1.2.3 ou 200.1.2.0/24"></textarea></div>
+      <div class="fg"><label class="f" for="ak-rate">Limite por minuto</label><input class="i" id="ak-rate" name="rate_per_min" type="number" min="1" max="100000" value="600"></div></div>
+  </div>
+  <div class="ft"><button class="btn o" type="button" data-close-dialog>Cancelar</button><button class="btn p" type="submit">Criar chave</button></div>
+</form></dialog>
+{% endblock %}

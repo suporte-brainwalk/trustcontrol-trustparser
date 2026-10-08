@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_tp.html" import spark, st_badge, syslog_box %}
+{% block title %}Visão geral{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Visão geral{% endblock %}
+{% block content %}
+<div class="grid g4">
+  <div class="card kpi accent"><div class="l">Eventos por segundo (5 min)</div><div class="v">{{ eps }}</div><div class="s">{{ k.last60|num }} na última hora</div></div>
+  <div class="card kpi blue"><div class="l">Reconhecidos (1 h)</div><div class="v">{{ parsed_pct if parsed_pct is not none else '—' }}{% if parsed_pct is not none %}%{% endif %}</div><div class="s">{{ k.unparsed60|num }} não reconhecidos</div></div>
+  <div class="card kpi red"><div class="l">Entregas pendentes</div><div class="v">{{ pending|num }}</div><div class="s">reenvio automático até 24 h</div></div>
+  <div class="card kpi purple"><div class="l">Destinos</div><div class="v">{{ dests|length }}</div><div class="s">{{ dests|selectattr('status', 'equalto', 'err')|list|length }} com falha</div></div>
+</div>
+<div class="grid g2" style="margin-top:16px">
+  <div class="card"><div class="hd"><h3>Entrada (60 min)</h3></div><div class="bd">{{ spark(series) }}</div></div>
+  <div class="card"><div class="hd"><h3>Endereço para configurar seus equipamentos</h3></div><div class="bd">{{ syslog_box(syslog) }}</div></div>
+</div>
+<div class="card" style="margin-top:16px"><div class="hd"><h3>Fontes</h3></div><div class="tw"><table class="t"><tr><th>Fonte</th><th>Último evento</th><th>Recebidos</th><th>Não reconhecidos</th></tr>
+{% for s in srcs %}<tr><td><b>{{ s.name }}</b><div class="sm muted">{{ s.transport }}</div></td><td class="sm">{{ s.last_event_at|dt }}</td><td>{{ s.events_total|num }}</td><td>{{ s.unparsed_total|num }}</td></tr>{% else %}<tr><td colspan="4" class="empty-state">Nenhuma fonte cadastrada pela Trust ainda.</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Verificação em duas etapas{% endblock %}
+{% block box %}
+<h2>Verificação em duas etapas</h2>
+<div class="sub">Digite o código de 6 dígitos do seu aplicativo autenticador.</div>
+<form method="post" action="{{ url_for('auth.mfa') }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="fg"><label class="f" for="code">Código</label>
+    <input class="i" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="14" required autofocus></div>
+  <button class="btn p block" type="submit">Verificar</button>
+</form>
+<div class="note">Sem acesso ao aplicativo? Digite um dos seus <b>códigos de recuperação</b> no mesmo campo.</div>
+<form method="post" action="{{ url_for('auth.logout') }}" class="note"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="link-btn" type="submit">Cancelar e sair</button></form>
+{% endblock %}

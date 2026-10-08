@@ -1,0 +1,285 @@
+{
+ "slug": "nginx-access-pipe",
+ "name": "Nginx · access log (formato delimitado por \" | \")",
+ "vendor": "NGINX",
+ "product": "NGINX",
+ "description": "Access log do Nginx no log_format delimitado por ' | ' (host, request, status, bytes, referer, user-agent, X-Forwarded-For, SSL). Aceita a linha pura, com cabeçalho syslog ou com o carimbo de data do coletor na frente.",
+ "detect": {
+  "re": "\\d{2}/[A-Z][a-z]{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} [+-]\\d{4} \\| "
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "set",
+   "to": "line",
+   "value": {
+    "first": [
+     "sl.msg",
+     "$raw"
+    ]
+   }
+  },
+  {
+   "op": "regex",
+   "from": "line",
+   "to": "h",
+   "name": "data local + resto",
+   "pattern": "^(?:(?P<collector_ts>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z?)\\s+)?(?P<time_local>\\d{2}/[A-Z][a-z]{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} [+-]\\d{4}) \\| (?P<rest>.*)$"
+  },
+  {
+   "op": "split",
+   "from": "h.rest",
+   "sep": " | ",
+   "to": "f",
+   "min_fields": 9,
+   "names": [
+    "remote_addr",
+    "remote_user",
+    "host",
+    "request",
+    "status",
+    "body_bytes_sent",
+    "http_referer",
+    "http_user_agent",
+    "http_x_forwarded_for",
+    "ssl_verify",
+    "ssl_dn",
+    "tail"
+   ]
+  },
+  {
+   "op": "regex",
+   "from": "f.request",
+   "to": "rq",
+   "optional": true,
+   "pattern": "^(?P<method>[A-Z]{3,10}) (?P<uri>\\S+)(?: (?P<protocol>HTTP/[\\d.]+))?$"
+  },
+  {
+   "op": "url",
+   "from": "rq.uri",
+   "to": "u",
+   "optional": true
+  },
+  {
+   "op": "regex",
+   "from": "f.ssl_verify",
+   "to": "sv",
+   "optional": true,
+   "pattern": "^SSLVerify: \"(?P<ssl_client_verify>[^\"]*)\"\\s*(?P<ssl_extra1>\\S*)\\s*(?P<upstream_status>\\S*)"
+  },
+  {
+   "op": "regex",
+   "from": "f.ssl_dn",
+   "to": "sd",
+   "optional": true,
+   "pattern": "^SSL_DN: \"(?P<ssl_client_s_dn>[^\"]*)\""
+  },
+  {
+   "op": "regex",
+   "from": "f.tail",
+   "to": "tl",
+   "optional": true,
+   "pattern": "\"(?P<ssl_protocol>(?:TLS|SSL)v[\\d.]+)/(?P<ssl_cipher>[^\"]+)\""
+  },
+  {
+   "op": "set",
+   "to": "scheme",
+   "value": {
+    "const": "https"
+   },
+   "when": {
+    "path": "tl.ssl_protocol",
+    "exists": true
+   }
+  },
+  {
+   "op": "set",
+   "to": "scheme",
+   "value": {
+    "const": "http"
+   },
+   "when": {
+    "path": "scheme",
+    "exists": false
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "path": "h.time_local",
+   "type": "strptime:%d/%b/%Y:%H:%M:%S %z"
+  },
+  "metadata.logged_time": {
+   "path": "h.collector_ts",
+   "type": "time"
+  },
+  "metadata.product.vendor_name": {
+   "const": "NGINX"
+  },
+  "metadata.product.name": {
+   "const": "NGINX"
+  },
+  "metadata.log_name": {
+   "const": "access"
+  },
+  "metadata.event_code": {
+   "path": "f.status"
+  },
+  "class_uid": {
+   "const": 4002
+  },
+  "class_name": {
+   "const": "HTTP Activity"
+  },
+  "category_uid": {
+   "const": 4
+  },
+  "category_name": {
+   "const": "Network Activity"
+  },
+  "activity_id": {
+   "lookup": "rq.method",
+   "table": {
+    "CONNECT": 1,
+    "DELETE": 2,
+    "GET": 3,
+    "HEAD": 4,
+    "OPTIONS": 5,
+    "POST": 6,
+    "PUT": 7,
+    "TRACE": 8,
+    "PATCH": 9
+   },
+   "default": 99
+  },
+  "activity_name": {
+   "first": [
+    "rq.method",
+    {
+     "const": "Other"
+    }
+   ],
+   "type": "upper"
+  },
+  "severity_id": {
+   "lookup": {
+    "regex": "^(\\d)",
+    "path": "f.status"
+   },
+   "table": {
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 2,
+    "5": 3
+   },
+   "default": 0
+  },
+  "status": {
+   "lookup": {
+    "regex": "^(\\d)",
+    "path": "f.status"
+   },
+   "table": {
+    "1": "Success",
+    "2": "Success",
+    "3": "Success",
+    "4": "Failure",
+    "5": "Failure"
+   },
+   "default": "Unknown"
+  },
+  "status_code": "f.status",
+  "message": {
+   "template": "{rq.method} {f.host}{rq.uri} {f.status}"
+  },
+  "src_endpoint.ip": {
+   "first": [
+    {
+     "path": "f.http_x_forwarded_for",
+     "type": [
+      "nil",
+      "ips",
+      "first"
+     ]
+    },
+    {
+     "path": "f.remote_addr",
+     "type": "ip"
+    }
+   ]
+  },
+  "proxy_endpoint.ip": {
+   "path": "f.remote_addr",
+   "type": "ip"
+  },
+  "dst_endpoint.hostname": {
+   "path": "f.host",
+   "type": "nil"
+  },
+  "actor.user.name": {
+   "path": "f.remote_user",
+   "type": "nil"
+  },
+  "http_request.http_method": "rq.method",
+  "http_request.version": "rq.protocol",
+  "http_request.url.url_string": {
+   "template": "{scheme}://{f.host}{rq.uri}",
+   "strict": true
+  },
+  "http_request.url.hostname": {
+   "path": "f.host",
+   "type": "nil"
+  },
+  "http_request.url.path": "u.path",
+  "http_request.url.query_string": "u.query_string",
+  "http_request.user_agent": {
+   "path": "f.http_user_agent",
+   "type": "nil"
+  },
+  "http_request.referrer": {
+   "path": "f.http_referer",
+   "type": "nil"
+  },
+  "http_request.x_forwarded_for": {
+   "path": "f.http_x_forwarded_for",
+   "type": [
+    "nil",
+    "ips"
+   ]
+  },
+  "http_response.code": {
+   "path": "f.status",
+   "type": "int"
+  },
+  "http_response.length": {
+   "path": "f.body_bytes_sent",
+   "type": [
+    "nil",
+    "int"
+   ]
+  },
+  "tls.version": "tl.ssl_protocol",
+  "tls.cipher": "tl.ssl_cipher",
+  "observer.hostname": "sl.hostname",
+  "raw_request": {
+   "path": "f.request",
+   "type": "nil"
+  },
+  "http_request.url.scheme": "scheme"
+ },
+ "unmapped": [
+  "sv",
+  "sd"
+ ],
+ "require": [
+  "time",
+  "http_response.code"
+ ],
+ "tests": []
+}

@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.db
+*.sqlite*
+data/
+instance/
+.venv/
+venv/
+node_modules/
+*.key
+*.pem
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Trust Parser
+samples/
+*.xlsx
+secrets/

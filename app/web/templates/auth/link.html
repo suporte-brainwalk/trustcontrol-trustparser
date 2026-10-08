@@ -1,0 +1,16 @@
+{% extends "auth/_layout.html" %}
+{% block box %}
+{% if valid %}
+  <h2>{{ 'Ativar seu acesso' if purpose == 'invite' else 'Confirmar entrada' }}</h2>
+  <div class="sub">Clique no botão para entrar no Trust Parser.</div>
+  <form method="post" action="{{ url_for('auth.magic', token=token) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn p block" type="submit">Entrar no portal</button>
+  </form>
+  <div class="note">Esta confirmação evita que verificadores automáticos de e-mail consumam seu link.</div>
+{% else %}
+  <h2>Link inválido ou expirado</h2>
+  <div class="sub">Este link já foi usado ou passou do prazo. Solicite um novo.</div>
+  <a class="btn p block" href="{{ url_for('auth.login') }}">Solicitar novo link</a>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,907 @@
+{
+ "slug": "cortex-xdr-api-alert",
+ "name": "Palo Alto Cortex XDR · alerta da API (get_alerts / get_alerts_multi_events)",
+ "vendor": "Palo Alto Networks",
+ "product": "Cortex XDR",
+ "description": "Um alerta de reply.alerts[] de /public_api/v1/alerts/get_alerts ou /public_api/v2/alerts/get_alerts_multi_events, serializado em uma linha. Vira Detection Finding com endpoint (host_name, host_ip, endpoint_id), usuário, processo iniciador e causador (CGO), processo/arquivo alvo, rede (local/remoto), MITRE e decisão. Aceita events[] (v1), events{} e os campos de evento achatados em listas no topo (v2); description pode vir como lista de tokens (BIOC). Feito pela documentação (esquema OpenAPI) e fixtures públicos — validar com resposta real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "all": [
+   {
+    "re": "^\\s*\\{"
+   },
+   {
+    "contains": "\"alert_id\""
+   },
+   {
+    "any": [
+     {
+      "contains": "\"detection_timestamp\""
+     },
+     {
+      "contains": "\"local_insert_ts\""
+     }
+    ]
+   }
+  ]
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "j"
+  },
+  {
+   "op": "set",
+   "to": "e",
+   "value": {
+    "first": [
+     "j.events.0",
+     "j.events"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "desc",
+   "value": {
+    "first": [
+     {
+      "path": "j.description",
+      "type": "join: "
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "act",
+   "value": {
+    "first": [
+     "j.action_pretty",
+     "j.action"
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "j.detection_timestamp",
+     "type": "time"
+    },
+    {
+     "first": [
+      {
+       "path": "e.event_timestamp",
+       "type": "time"
+      },
+      {
+       "path": "j.event_timestamp",
+       "type": [
+        "first",
+        "time"
+       ]
+      }
+     ]
+    },
+    {
+     "path": "j.local_insert_ts",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.logged_time": {
+   "path": "j.local_insert_ts",
+   "type": "time"
+  },
+  "metadata.product.vendor_name": {
+   "const": "Palo Alto Networks"
+  },
+  "metadata.product.name": {
+   "const": "Cortex XDR"
+  },
+  "metadata.event_code": {
+   "first": [
+    "j.source",
+    "j.alert_type",
+    "j.category"
+   ]
+  },
+  "metadata.event_subtype": {
+   "first": [
+    {
+     "path": "e.event_type"
+    },
+    {
+     "path": "j.event_type",
+     "type": "first"
+    }
+   ]
+  },
+  "metadata.uid": {
+   "path": "j.alert_id",
+   "type": "str"
+  },
+  "class_uid": {
+   "const": 2004
+  },
+  "class_name": {
+   "const": "Detection Finding"
+  },
+  "category_uid": {
+   "const": 2
+  },
+  "category_name": {
+   "const": "Findings"
+  },
+  "activity_id": {
+   "const": 1
+  },
+  "activity_name": {
+   "const": "Create"
+  },
+  "severity_id": {
+   "lookup": {
+    "path": "j.severity",
+    "type": "lower"
+   },
+   "table": {
+    "informational": 1,
+    "info": 1,
+    "low": 2,
+    "medium": 3,
+    "high": 4,
+    "critical": 5,
+    "sev_010_info": 1,
+    "sev_020_low": 2,
+    "sev_030_medium": 3,
+    "sev_040_high": 4,
+    "sev_050_critical": 5
+   },
+   "default": 0
+  },
+  "message": {
+   "first": [
+    "j.name",
+    "desc"
+   ]
+  },
+  "finding_info.uid": {
+   "path": "j.alert_id",
+   "type": "str"
+  },
+  "finding_info.title": {
+   "first": [
+    "j.name",
+    "desc"
+   ]
+  },
+  "finding_info.desc": "desc",
+  "finding_info.types": {
+   "list": [
+    "j.category"
+   ]
+  },
+  "finding_info.src": "j.source",
+  "finding_info.related_incident": {
+   "first": [
+    {
+     "path": "j.case_id",
+     "type": "str"
+    },
+    {
+     "path": "j.incident_id",
+     "type": "str"
+    }
+   ]
+  },
+  "finding_info.tactics": "j.mitre_tactic_id_and_name",
+  "finding_info.techniques": "j.mitre_technique_id_and_name",
+  "disposition": {
+   "lookup": {
+    "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+    "path": "act",
+    "type": "lower"
+   },
+   "table": {
+    "prevent": "Blocked",
+    "block": "Blocked",
+    "detect": "Detected",
+    "report": "Detected",
+    "scan": "Detected",
+    "allow": "Allowed"
+   },
+   "default": "Detected"
+  },
+  "disposition_id": {
+   "lookup": {
+    "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+    "path": "act",
+    "type": "lower"
+   },
+   "table": {
+    "prevent": 2,
+    "block": 2,
+    "detect": 15,
+    "report": 15,
+    "scan": 15,
+    "allow": 1
+   },
+   "default": 15
+  },
+  "action": {
+   "lookup": {
+    "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+    "path": "act",
+    "type": "lower"
+   },
+   "table": {
+    "prevent": "Denied",
+    "block": "Denied",
+    "allow": "Allowed"
+   }
+  },
+  "action_id": {
+   "lookup": {
+    "regex": "(?i)(prevent|block|detect|report|scan|allow)",
+    "path": "act",
+    "type": "lower"
+   },
+   "table": {
+    "prevent": 2,
+    "block": 2,
+    "allow": 1
+   }
+  },
+  "device.hostname": "j.host_name",
+  "device.uid": "j.endpoint_id",
+  "device.ip": {
+   "path": "j.host_ip",
+   "type": [
+    "ips",
+    "first"
+   ]
+  },
+  "device.ips": {
+   "path": "j.host_ip",
+   "type": "ips"
+  },
+  "device.domain": "j.agent_device_domain",
+  "device.os.name": {
+   "first": [
+    "j.agent_os_sub_type",
+    "j.agent_os_type"
+   ]
+  },
+  "device.os.type": "j.agent_os_type",
+  "actor.user.name": {
+   "first": [
+    {
+     "path": "j.user_name",
+     "type": [
+      "first",
+      "user"
+     ]
+    },
+    {
+     "first": [
+      {
+       "path": "e.os_actor_effective_username",
+       "type": "user"
+      },
+      {
+       "path": "j.os_actor_effective_username",
+       "type": [
+        "first",
+        "user"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "actor.user.domain": {
+   "first": [
+    {
+     "path": "j.user_name",
+     "type": [
+      "first",
+      "domain"
+     ]
+    },
+    {
+     "first": [
+      {
+       "path": "e.os_actor_effective_username",
+       "type": "domain"
+      },
+      {
+       "path": "j.os_actor_effective_username",
+       "type": [
+        "first",
+        "domain"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "actor.user.full_name": {
+   "first": [
+    {
+     "path": "j.user_name",
+     "type": "first"
+    },
+    {
+     "first": [
+      {
+       "path": "e.os_actor_effective_username"
+      },
+      {
+       "path": "j.os_actor_effective_username",
+       "type": "first"
+      }
+     ]
+    }
+   ]
+  },
+  "actor.process.name": {
+   "first": [
+    {
+     "path": "e.actor_process_image_name"
+    },
+    {
+     "path": "j.actor_process_image_name",
+     "type": "first"
+    }
+   ]
+  },
+  "actor.process.path": {
+   "first": [
+    {
+     "path": "e.actor_process_image_path"
+    },
+    {
+     "path": "j.actor_process_image_path",
+     "type": "first"
+    }
+   ]
+  },
+  "actor.process.cmd_line": {
+   "first": [
+    {
+     "path": "e.actor_process_command_line"
+    },
+    {
+     "path": "j.actor_process_command_line",
+     "type": "first"
+    }
+   ]
+  },
+  "actor.process.pid": {
+   "first": [
+    {
+     "path": "e.actor_process_os_pid",
+     "type": "int"
+    },
+    {
+     "path": "j.actor_process_os_pid",
+     "type": [
+      "first",
+      "int"
+     ]
+    }
+   ]
+  },
+  "actor.process.file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        {
+         "path": "e.actor_process_image_sha256"
+        },
+        {
+         "path": "j.actor_process_image_sha256",
+         "type": "first"
+        }
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        {
+         "path": "e.actor_process_image_sha256"
+        },
+        {
+         "path": "j.actor_process_image_sha256",
+         "type": "first"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        {
+         "path": "e.actor_process_image_md5"
+        },
+        {
+         "path": "j.actor_process_image_md5",
+         "type": "first"
+        }
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        {
+         "path": "e.actor_process_image_md5"
+        },
+        {
+         "path": "j.actor_process_image_md5",
+         "type": "first"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "actor.process.file.signer": {
+   "first": [
+    {
+     "path": "e.actor_process_signature_vendor"
+    },
+    {
+     "path": "j.actor_process_signature_vendor",
+     "type": "first"
+    }
+   ]
+  },
+  "actor.process.parent_process.name": {
+   "first": [
+    {
+     "path": "e.causality_actor_process_image_name"
+    },
+    {
+     "path": "j.causality_actor_process_image_name",
+     "type": "first"
+    }
+   ]
+  },
+  "actor.process.parent_process.cmd_line": {
+   "first": [
+    {
+     "path": "e.causality_actor_process_command_line"
+    },
+    {
+     "path": "j.causality_actor_process_command_line",
+     "type": "first"
+    }
+   ]
+  },
+  "process.name": {
+   "first": [
+    {
+     "path": "e.action_process_image_name"
+    },
+    {
+     "path": "j.action_process_image_name",
+     "type": "first"
+    }
+   ]
+  },
+  "process.cmd_line": {
+   "first": [
+    {
+     "path": "e.action_process_image_command_line"
+    },
+    {
+     "path": "j.action_process_image_command_line",
+     "type": "first"
+    }
+   ]
+  },
+  "process.file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        {
+         "path": "e.action_process_image_sha256"
+        },
+        {
+         "path": "j.action_process_image_sha256",
+         "type": "first"
+        }
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        {
+         "path": "e.action_process_image_sha256"
+        },
+        {
+         "path": "j.action_process_image_sha256",
+         "type": "first"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "file.path": {
+   "first": [
+    {
+     "path": "e.action_file_path"
+    },
+    {
+     "path": "j.action_file_path",
+     "type": "first"
+    }
+   ]
+  },
+  "file.name": {
+   "first": [
+    {
+     "first": [
+      {
+       "path": "e.action_file_name"
+      },
+      {
+       "path": "j.action_file_name",
+       "type": "first"
+      }
+     ]
+    },
+    {
+     "first": [
+      {
+       "path": "e.action_file_path",
+       "type": "basename"
+      },
+      {
+       "path": "j.action_file_path",
+       "type": [
+        "first",
+        "basename"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        {
+         "path": "e.action_file_sha256"
+        },
+        {
+         "path": "j.action_file_sha256",
+         "type": "first"
+        }
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        {
+         "path": "e.action_file_sha256"
+        },
+        {
+         "path": "j.action_file_sha256",
+         "type": "first"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        {
+         "path": "e.action_file_md5"
+        },
+        {
+         "path": "j.action_file_md5",
+         "type": "first"
+        }
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        {
+         "path": "e.action_file_md5"
+        },
+        {
+         "path": "j.action_file_md5",
+         "type": "first"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "src_endpoint.ip": {
+   "first": [
+    {
+     "path": "e.action_local_ip",
+     "type": "ip"
+    },
+    {
+     "path": "j.action_local_ip",
+     "type": [
+      "first",
+      "ip"
+     ]
+    }
+   ]
+  },
+  "src_endpoint.port": {
+   "first": [
+    {
+     "path": "e.action_local_port",
+     "type": "int"
+    },
+    {
+     "path": "j.action_local_port",
+     "type": [
+      "first",
+      "int"
+     ]
+    }
+   ]
+  },
+  "dst_endpoint.ip": {
+   "first": [
+    {
+     "path": "e.action_remote_ip",
+     "type": "ip"
+    },
+    {
+     "path": "j.action_remote_ip",
+     "type": [
+      "first",
+      "ip"
+     ]
+    }
+   ]
+  },
+  "dst_endpoint.port": {
+   "first": [
+    {
+     "path": "e.action_remote_port",
+     "type": "int"
+    },
+    {
+     "path": "j.action_remote_port",
+     "type": [
+      "first",
+      "int"
+     ]
+    }
+   ]
+  },
+  "dst_endpoint.hostname": {
+   "first": [
+    {
+     "path": "e.action_external_hostname"
+    },
+    {
+     "path": "j.action_external_hostname",
+     "type": "first"
+    }
+   ]
+  },
+  "dst_endpoint.location.country": {
+   "first": [
+    {
+     "path": "e.action_country"
+    },
+    {
+     "path": "j.action_country",
+     "type": "first"
+    }
+   ]
+  },
+  "rule.name": {
+   "first": [
+    {
+     "path": "e.fw_rule"
+    },
+    {
+     "path": "j.fw_rule",
+     "type": "first"
+    }
+   ]
+  },
+  "observer.hostname": {
+   "first": [
+    {
+     "path": "e.fw_device_name"
+    },
+    {
+     "path": "j.fw_device_name",
+     "type": "first"
+    }
+   ]
+  },
+  "unmapped.registry_key": {
+   "first": [
+    {
+     "path": "e.action_registry_full_key"
+    },
+    {
+     "path": "j.action_registry_full_key",
+     "type": "first"
+    }
+   ]
+  },
+  "unmapped.registry_value": {
+   "first": [
+    {
+     "path": "e.action_registry_value_name"
+    },
+    {
+     "path": "j.action_registry_value_name",
+     "type": "first"
+    }
+   ]
+  },
+  "unmapped.registry_data": {
+   "first": [
+    {
+     "path": "e.action_registry_data"
+    },
+    {
+     "path": "j.action_registry_data",
+     "type": "first"
+    }
+   ]
+  }
+ },
+ "unmapped": [
+  "j"
+ ],
+ "unmapped_drop": [
+  "events",
+  "description",
+  "alert_id",
+  "detection_timestamp",
+  "local_insert_ts",
+  "name",
+  "category",
+  "source",
+  "severity",
+  "action",
+  "action_pretty",
+  "host_name",
+  "host_ip",
+  "endpoint_id",
+  "agent_os_type",
+  "agent_os_sub_type",
+  "user_name",
+  "mitre_tactic_id_and_name",
+  "mitre_technique_id_and_name",
+  "case_id",
+  "event_timestamp",
+  "event_type",
+  "actor_process_image_name",
+  "actor_process_image_path",
+  "actor_process_command_line",
+  "actor_process_os_pid",
+  "actor_process_image_sha256",
+  "causality_actor_process_image_name",
+  "causality_actor_process_command_line",
+  "action_local_ip",
+  "action_local_port",
+  "action_remote_ip",
+  "action_remote_port",
+  "action_file_path",
+  "action_file_name",
+  "action_file_sha256"
+ ],
+ "require": [
+  "time",
+  "metadata.uid"
+ ],
+ "tests": [
+  {
+   "name": "BIOC com events{} e description em tokens (fixture pública)",
+   "input": "{\"external_id\":\"52517f58-0201-4d66-b5c4-00922664737e\",\"severity\":\"low\",\"matching_status\":\"MATCHED\",\"local_insert_ts\":1588792547132,\"bioc_category_enum_key\":\"TAMPERING\",\"is_whitelisted\":false,\"starred\":false,\"mitre_technique_id_and_name\":[\"T1089 - Disabling Security Tools\"],\"mitre_tactic_id_and_name\":[\"TA0005 - Defense Evasion\"],\"agent_os_type\":\"Windows\",\"agent_os_sub_type\":\"Windows 10 [10.0 (Build 17763)]\",\"events\":{\"agent_install_type\":\"STANDARD\",\"event_id\":\"AAABcetp1dDSqW1uAAY8Vw==\",\"event_type\":\"Registry Event\",\"event_timestamp\":1588792514182,\"actor_process_image_path\":\"C:\\\\Windows\\\\System32\\\\netsh.exe\",\"actor_process_image_name\":\"netsh.exe\",\"actor_process_command_line\":\"netsh  advfirewall set allprofiles state off\",\"actor_process_signature_status\":\"Signed\",\"actor_process_signature_vendor\":\"Microsoft Corporation\",\"actor_process_image_sha256\":\"d70d165b6706c61c56f2ca91307f4bbdb9846acae1da3cfd84bf978ffb21af23\",\"actor_process_os_pid\":14540,\"causality_actor_process_image_name\":\"cmd.exe\",\"causality_actor_process_command_line\":\"\\\"C:\\\\WINDOWS\\\\system32\\\\cmd.exe\\\" \",\"action_registry_value_name\":\"EnableFirewall\",\"action_registry_data\":\"0\",\"action_registry_full_key\":\"HKEY_LOCAL_MACHINE\\\\SYSTEM\\\\ControlSet001\\\\Services\\\\SharedAccess\\\\Parameters\\\\FirewallPolicy\\\\DomainProfile\\\\EnableFirewall\",\"os_actor_process_image_name\":\"svchost.exe\"},\"alert_id\":\"884236\",\"detection_timestamp\":1588792514182,\"name\":\"Windows Firewall disabled via Registry\",\"category\":\"Tampering\",\"endpoint_id\":\"98a86ba773fbe44f6b41ba2216fe2f53\",\"description\":[{\"pretty_name\":\"Registry\",\"render_type\":\"entity\"},\"…(BIOC rule as token array)…\"],\"host_ip\":[\"192.168.88.1\",\"192.168.153.1\",\"10.10.10.10\"],\"host_name\":\"testhostname-123\",\"source\":\"XDR BIOC\",\"action\":\"DETECTED\",\"action_pretty\":\"Detected\"}",
+   "expect": {
+    "time": "2020-05-06T19:15:14.182Z",
+    "class_uid": 2004,
+    "severity_id": 2,
+    "metadata.event_code": "XDR BIOC",
+    "metadata.event_subtype": "Registry Event",
+    "finding_info.title": "Windows Firewall disabled via Registry",
+    "finding_info.desc": "…(BIOC rule as token array)…",
+    "device.hostname": "testhostname-123",
+    "device.ip": "192.168.88.1",
+    "actor.process.name": "netsh.exe",
+    "actor.process.pid": 14540,
+    "actor.process.parent_process.name": "cmd.exe",
+    "disposition": "Detected",
+    "finding_info.techniques": [
+     "T1089 - Disabling Security Tools"
+    ],
+    "unmapped.registry_value": "EnableFirewall",
+    "unmapped.bioc_category_enum_key": "TAMPERING"
+   }
+  },
+  {
+   "name": "alerta de NGFW bloqueado com rede (fixture pública)",
+   "input": "{\"external_id\":\"396239671\",\"severity\":\"high\",\"agent_os_type\":\"NO_HOST\",\"events\":{\"event_type\":\"Network Connections\",\"event_timestamp\":1626346867000,\"action_local_ip\":\"10.10.10.10\",\"action_local_port\":58642,\"action_remote_ip\":\"175.16.199.1\",\"action_remote_port\":443,\"action_country\":\"DK\",\"fw_app_id\":\"web-browsing\",\"fw_rule\":\"INTERNET_INTERNET_GlobalProtect-443\",\"fw_device_name\":\"FW-DEVICE_NAME\",\"fw_serial_number\":\"12352345\",\"fw_vsys\":\"vsys1\",\"fw_misc\":\"7.7.7.7/cgi-bin/config.exp\",\"fw_is_phishing\":\"No\"},\"alert_id\":\"2879211\",\"detection_timestamp\":1626346849000,\"name\":\"Cisco RV320/RV325 Router Unauthenticated Configuration Export Vulnerability\",\"category\":\"Vulnerability\",\"endpoint_id\":\"192.168.2.2\",\"description\":\"Info-Leak (7.7.7.7/cgi-bin/config.exp)\",\"host_ip\":[\"192.168.2.2\"],\"source\":\"PAN NGFW\",\"action\":\"BLOCKED_9\",\"action_pretty\":\"Prevented (Terminated The Session And Sent a TCP Reset To Both Sides Of The Connection)\"}",
+   "expect": {
+    "severity_id": 4,
+    "disposition": "Blocked",
+    "action": "Denied",
+    "src_endpoint.ip": "10.10.10.10",
+    "dst_endpoint.ip": "175.16.199.1",
+    "dst_endpoint.port": 443,
+    "dst_endpoint.location.country": "DK",
+    "rule.name": "INTERNET_INTERNET_GlobalProtect-443",
+    "device.ip": "192.168.2.2",
+    "metadata.event_code": "PAN NGFW",
+    "finding_info.desc": "Info-Leak (7.7.7.7/cgi-bin/config.exp)"
+   }
+  },
+  {
+   "name": "v2 multi-events com campos achatados em listas",
+   "input": "{\"category\":\"<category>\",\"causality_actor_process_command_line\":[\"/usr/bin/ssh -l user 10.0.0.16\"],\"event_type\":[\"Process Execution\"],\"actor_process_os_pid\":[996],\"action_local_ip\":[\"89.160.20.128\"],\"action_local_port\":[8080],\"action_remote_ip\":[\"1.128.0.0\",\"67.43.156.0\",\"89.160.20.128\"],\"action_remote_port\":[9099],\"mitre_tactic_id_and_name\":[\"TA0005 - Defense Evasion\"],\"severity\":\"low\",\"matching_status\":\"MATCHED\",\"local_insert_ts\":1673372647792,\"case_id\":9629,\"event_timestamp\":[1562199363118],\"alert_type\":\"Unclassified\",\"resolution_status\":\"STATUS_010_NEW\",\"tags\":[\"ET:DESKTOP-FCCIPAN\",\"EG:k8s agents\",\"EG:windows\"],\"alert_id\":\"2\",\"detection_timestamp\":1569159363318,\"name\":\"A user enabled the Windows DefaultAccount\",\"description\":\"The user domain\\\\username enabled a default account. The default account enabled: domain\\\\username\",\"host_ip\":[\"192.168.2.2\"],\"user_name\":[\"bob@example.com\"],\"action\":\"DETECTED\",\"action_pretty\":\"Detected\"}",
+   "expect": {
+    "time": "2019-09-22T13:36:03.318Z",
+    "metadata.event_code": "Unclassified",
+    "actor.process.pid": 996,
+    "src_endpoint.ip": "89.160.20.128",
+    "dst_endpoint.ip": "1.128.0.0",
+    "actor.user.name": "bob",
+    "finding_info.related_incident": "9629",
+    "metadata.event_subtype": "Process Execution"
+   }
+  },
+  {
+   "name": "malware bloqueado com events[] (sintético)",
+   "input": "{\"alert_id\":\"990001\",\"external_id\":\"c0ffee00-0000-4000-8000-000000000001\",\"detection_timestamp\":1791464400000,\"local_insert_ts\":1791464410000,\"name\":\"WildFire Malware\",\"category\":\"Malware\",\"source\":\"XDR Agent\",\"severity\":\"critical\",\"action\":\"BLOCKED\",\"action_pretty\":\"Prevented (Blocked)\",\"host_name\":\"PC-0001\",\"host_ip\":[\"10.0.0.15\"],\"endpoint_id\":\"0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\",\"agent_os_type\":\"Windows\",\"agent_device_domain\":\"acme.local\",\"user_name\":\"ACME\\\\usuario1\",\"events\":[{\"event_type\":\"File Event\",\"event_timestamp\":1791464399000,\"actor_process_image_name\":\"explorer.exe\",\"actor_process_image_path\":\"C:\\\\Windows\\\\explorer.exe\",\"actor_process_os_pid\":4321,\"action_file_name\":\"fatura.exe\",\"action_file_path\":\"C:\\\\Users\\\\usuario1\\\\Downloads\\\\fatura.exe\",\"action_file_sha256\":\"275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f\"}]}",
+   "expect": {
+    "severity_id": 5,
+    "disposition": "Blocked",
+    "file.name": "fatura.exe",
+    "file.hashes.0.algorithm": "SHA-256",
+    "device.hostname": "PC-0001",
+    "device.domain": "acme.local",
+    "actor.user.name": "usuario1",
+    "actor.process.pid": 4321,
+    "metadata.uid": "990001"
+   }
+  }
+ ]
+}

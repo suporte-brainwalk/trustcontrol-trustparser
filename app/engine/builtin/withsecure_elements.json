@@ -1,0 +1,962 @@
+{
+ "slug": "withsecure-elements-syslog",
+ "name": "WithSecure Elements · eventos de segurança (Elements Connector / syslog)",
+ "vendor": "WithSecure",
+ "product": "Elements Endpoint Protection",
+ "description": "Eventos do WithSecure Elements enviados pelo Elements Connector: '<categoria> event [alertMeta@0 chave=\"valor\" ...]', puro, com cabeçalho syslog ou no envelope JSON {facility, hostname, message, priority}. Inclui o evento Windows (XML) embutido nos eventos de sistema.",
+ "detect": {
+  "re": "\\[alertMeta@\\d+ eventType="
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "env",
+   "when": {
+    "path": "$raw",
+    "re": "^\\s*\\{"
+   }
+  },
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "when": {
+    "path": "env",
+    "exists": false
+   },
+   "optional": true
+  },
+  {
+   "op": "set",
+   "to": "m",
+   "value": {
+    "first": [
+     "env.message",
+     "sl.msg",
+     "$raw"
+    ]
+   }
+  },
+  {
+   "op": "regex",
+   "from": "m",
+   "to": "r",
+   "name": "categoria + alertMeta",
+   "pattern": "(?P<category>[A-Za-z][A-Za-z ]*?)\\s*\\[alertMeta@\\d+ (?P<sd>.*)\\]\\s*$"
+  },
+  {
+   "op": "kv",
+   "from": "r.sd",
+   "to": "kv",
+   "mode": "quoted"
+  },
+  {
+   "op": "mojibake",
+   "paths": [
+    "kv"
+   ]
+  },
+  {
+   "op": "winxml",
+   "from": "kv.details_eventXml",
+   "to": "win",
+   "optional": true
+  },
+  {
+   "op": "set",
+   "to": "hostips",
+   "value": {
+    "path": "kv.details_hostIpAddress",
+    "type": "ips"
+   }
+  },
+  {
+   "op": "set",
+   "to": "user_raw",
+   "value": {
+    "first": [
+     "kv.details_userName",
+     "kv.suser"
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "kv.details_clientTimestamp",
+     "type": "epoch_ms"
+    },
+    {
+     "path": "win.System.TimeCreatedSystemTime",
+     "type": "time"
+    },
+    {
+     "path": "kv.details_systemDataTimeCreated",
+     "type": "epoch_s"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "WithSecure"
+  },
+  "metadata.product.name": {
+   "const": "Elements Endpoint Protection"
+  },
+  "metadata.log_name": "r.category",
+  "metadata.event_code": "kv.eventType",
+  "metadata.event_subtype": "kv.details_alertType",
+  "metadata.throttled_count": {
+   "path": "kv.details_throttledCount",
+   "type": "int"
+  },
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "severity_id": {
+   "lookup": "kv.details_alertType",
+   "table": {
+    "system_events_log.event.warning.added": 2
+   },
+   "default": 1
+  },
+  "message": {
+   "first": [
+    "kv.message",
+    "kv.details_description",
+    "r.category"
+   ]
+  },
+  "device.hostname": "kv.deviceName",
+  "device.uid": "kv.deviceId",
+  "device.ip": {
+   "path": "hostips",
+   "type": "first"
+  },
+  "device.ips": "hostips",
+  "device.org.name": "kv.accountName",
+  "actor.user.name": {
+   "path": "user_raw",
+   "type": "user"
+  },
+  "actor.user.domain": {
+   "path": "user_raw",
+   "type": "domain"
+  },
+  "actor.user.full_name": "user_raw",
+  "actor.user.email_addr": "kv.details_userPrincipalName",
+  "policy.name": "kv.details_profileName",
+  "policy.uid": "kv.details_profileId",
+  "policy.version": "kv.details_profileVersion",
+  "observer.hostname": {
+   "first": [
+    "env.hostname",
+    "sl.hostname"
+   ]
+  },
+  "observer.syslog_priority": {
+   "first": [
+    "env.priority",
+    "sl.pri"
+   ]
+  }
+ },
+ "cases": [
+  {
+   "name": "windows-4625-logon-falho",
+   "when": {
+    "all": [
+     {
+      "path": "kv.eventType",
+      "eq": "systemEventsLog.reported"
+     },
+     {
+      "path": "win.System.EventID",
+      "eq": "4625"
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3002
+    },
+    "class_name": {
+     "const": "Authentication"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Logon"
+    },
+    "status": {
+     "const": "Failure"
+    },
+    "status_id": {
+     "const": 2
+    },
+    "severity_id": {
+     "const": 2
+    },
+    "status_code": "win.EventData.Status",
+    "status_detail": "win.EventData.SubStatus",
+    "user.name": "win.EventData.TargetUserName",
+    "user.domain": "win.EventData.TargetDomainName",
+    "user.uid": {
+     "path": "win.EventData.TargetUserSid",
+     "type": "nil"
+    },
+    "logon_type_id": {
+     "path": "win.EventData.LogonType",
+     "type": "int"
+    },
+    "logon_process.name": {
+     "path": "win.EventData.LogonProcessName",
+     "type": "strip"
+    },
+    "auth_protocol": "win.EventData.AuthenticationPackageName",
+    "src_endpoint.ip": {
+     "path": "win.EventData.IpAddress",
+     "type": "ip"
+    },
+    "src_endpoint.port": {
+     "path": "win.EventData.IpPort",
+     "type": [
+      "int"
+     ]
+    },
+    "src_endpoint.hostname": {
+     "path": "win.EventData.WorkstationName",
+     "type": "nil"
+    },
+    "actor.process.path": {
+     "path": "win.EventData.ProcessName",
+     "type": "nil"
+    },
+    "actor.process.name": {
+     "path": "win.EventData.ProcessName",
+     "type": [
+      "nil",
+      "basename"
+     ]
+    },
+    "metadata.event_code": "win.System.EventID",
+    "metadata.log_name": "win.System.Channel",
+    "metadata.uid": "win.System.EventRecordID",
+    "metadata.windows_provider": "win.System.ProviderName",
+    "device.hostname": {
+     "first": [
+      "win.System.Computer",
+      "kv.deviceName"
+     ]
+    },
+    "actor.user.name": "win.EventData.SubjectUserName",
+    "actor.user.domain": "win.EventData.SubjectDomainName",
+    "actor.user.uid": "win.EventData.SubjectUserSid",
+    "actor.user.full_name": {
+     "template": "{win.EventData.SubjectDomainName}\\{win.EventData.SubjectUserName}",
+     "strict": true
+    },
+    "device.logged_user": "user_raw"
+   },
+   "unset": [
+    "actor.user"
+   ]
+  },
+  {
+   "name": "windows-conta",
+   "when": {
+    "all": [
+     {
+      "path": "kv.eventType",
+      "eq": "systemEventsLog.reported"
+     },
+     {
+      "path": "win.System.EventID",
+      "in": [
+       "4720",
+       "4722",
+       "4723",
+       "4724",
+       "4725",
+       "4726",
+       "4738",
+       "4740",
+       "4767"
+      ]
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3001
+    },
+    "class_name": {
+     "const": "Account Change"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "lookup": "win.System.EventID",
+     "table": {
+      "4720": 1,
+      "4722": 2,
+      "4723": 3,
+      "4724": 4,
+      "4725": 5,
+      "4726": 6,
+      "4740": 9,
+      "4767": 11,
+      "4738": 99
+     }
+    },
+    "activity_name": {
+     "lookup": "win.System.EventID",
+     "table": {
+      "4720": "Create",
+      "4722": "Enable",
+      "4723": "Password Change",
+      "4724": "Password Reset",
+      "4725": "Disable",
+      "4726": "Delete",
+      "4740": "Lock",
+      "4767": "Unlock",
+      "4738": "Other"
+     }
+    },
+    "status": {
+     "const": "Success"
+    },
+    "severity_id": {
+     "const": 2
+    },
+    "user.name": "win.EventData.TargetUserName",
+    "user.domain": "win.EventData.TargetDomainName",
+    "user.uid": {
+     "first": [
+      "win.EventData.TargetSid",
+      "win.EventData.TargetUserSid"
+     ]
+    },
+    "user.email_addr": {
+     "path": "win.EventData.UserPrincipalName",
+     "type": "nil"
+    },
+    "user.display_name": {
+     "path": "win.EventData.DisplayName",
+     "type": "nil"
+    },
+    "actor.user.name": "win.EventData.SubjectUserName",
+    "actor.user.domain": "win.EventData.SubjectDomainName",
+    "actor.user.uid": "win.EventData.SubjectUserSid",
+    "actor.user.full_name": {
+     "template": "{win.EventData.SubjectDomainName}\\{win.EventData.SubjectUserName}",
+     "strict": true
+    },
+    "metadata.event_code": "win.System.EventID",
+    "metadata.log_name": "win.System.Channel",
+    "metadata.uid": "win.System.EventRecordID",
+    "metadata.windows_provider": "win.System.ProviderName",
+    "device.hostname": {
+     "first": [
+      "win.System.Computer",
+      "kv.deviceName"
+     ]
+    },
+    "device.logged_user": "user_raw"
+   },
+   "unset": [
+    "actor.user"
+   ]
+  },
+  {
+   "name": "windows-grupo",
+   "when": {
+    "all": [
+     {
+      "path": "kv.eventType",
+      "eq": "systemEventsLog.reported"
+     },
+     {
+      "path": "win.System.EventID",
+      "in": [
+       "4727",
+       "4728",
+       "4729",
+       "4730",
+       "4731",
+       "4732",
+       "4733",
+       "4734",
+       "4735",
+       "4737",
+       "4754",
+       "4756",
+       "4757"
+      ]
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3006
+    },
+    "class_name": {
+     "const": "Group Management"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "lookup": "win.System.EventID",
+     "table": {
+      "4728": 3,
+      "4732": 3,
+      "4756": 3,
+      "4729": 4,
+      "4733": 4,
+      "4757": 4,
+      "4730": 5,
+      "4734": 5,
+      "4727": 6,
+      "4731": 6,
+      "4754": 6
+     },
+     "default": 99
+    },
+    "activity_name": {
+     "lookup": "win.System.EventID",
+     "table": {
+      "4728": "Add User",
+      "4732": "Add User",
+      "4756": "Add User",
+      "4729": "Remove User",
+      "4733": "Remove User",
+      "4757": "Remove User",
+      "4730": "Delete",
+      "4734": "Delete",
+      "4727": "Create",
+      "4731": "Create",
+      "4754": "Create"
+     },
+     "default": "Other"
+    },
+    "status": {
+     "const": "Success"
+    },
+    "severity_id": {
+     "const": 3
+    },
+    "group.name": "win.EventData.TargetUserName",
+    "group.domain": "win.EventData.TargetDomainName",
+    "group.uid": "win.EventData.TargetSid",
+    "user.name": {
+     "path": "win.EventData.MemberName",
+     "type": "nil"
+    },
+    "user.uid": {
+     "path": "win.EventData.MemberSid",
+     "type": "nil"
+    },
+    "actor.user.name": "win.EventData.SubjectUserName",
+    "actor.user.domain": "win.EventData.SubjectDomainName",
+    "actor.user.uid": "win.EventData.SubjectUserSid",
+    "actor.user.full_name": {
+     "template": "{win.EventData.SubjectDomainName}\\{win.EventData.SubjectUserName}",
+     "strict": true
+    },
+    "metadata.event_code": "win.System.EventID",
+    "metadata.log_name": "win.System.Channel",
+    "metadata.uid": "win.System.EventRecordID",
+    "metadata.windows_provider": "win.System.ProviderName",
+    "device.hostname": {
+     "first": [
+      "win.System.Computer",
+      "kv.deviceName"
+     ]
+    },
+    "device.logged_user": "user_raw"
+   },
+   "unset": [
+    "actor.user"
+   ]
+  },
+  {
+   "name": "windows-outro",
+   "when": {
+    "path": "kv.eventType",
+    "eq": "systemEventsLog.reported"
+   },
+   "map": {
+    "class_uid": {
+     "const": 1008
+    },
+    "class_name": {
+     "const": "Event Log Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "metadata.event_code": {
+     "first": [
+      "win.System.EventID",
+      "kv.details_systemDataEventId"
+     ]
+    },
+    "metadata.log_name": {
+     "first": [
+      "win.System.Channel",
+      "kv.details_systemDataChannel"
+     ]
+    },
+    "metadata.uid": {
+     "first": [
+      "win.System.EventRecordID",
+      "kv.details_systemDataRecordId"
+     ]
+    },
+    "metadata.windows_provider": {
+     "first": [
+      "win.System.ProviderName",
+      "kv.details_systemDataProviderName"
+     ]
+    },
+    "user.name": {
+     "path": "win.EventData.TargetUserName",
+     "type": "nil"
+    },
+    "user.domain": {
+     "path": "win.EventData.TargetDomainName",
+     "type": "nil"
+    },
+    "device.hostname": {
+     "first": [
+      "win.System.Computer",
+      "kv.deviceName"
+     ]
+    }
+   }
+  },
+  {
+   "name": "controle-de-aplicativo",
+   "when": {
+    "path": "kv.eventType",
+    "startswith": "applicationControl."
+   },
+   "map": {
+    "class_uid": {
+     "const": 1007
+    },
+    "class_name": {
+     "const": "Process Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "lookup": "kv.details_ruleEvent",
+     "table": {
+      "application_start": 1,
+      "file_access": 99
+     },
+     "default": 99
+    },
+    "activity_name": {
+     "lookup": "kv.details_ruleEvent",
+     "table": {
+      "application_start": "Launch",
+      "file_access": "File Access"
+     },
+     "default": "Other"
+    },
+    "disposition": {
+     "const": "Blocked"
+    },
+    "disposition_id": {
+     "const": 2
+    },
+    "action": {
+     "const": "Denied"
+    },
+    "action_id": {
+     "const": 2
+    },
+    "severity_id": {
+     "const": 2
+    },
+    "process.file.path": "kv.details_targetPath",
+    "process.file.name": {
+     "path": "kv.details_targetPath",
+     "type": "basename"
+    },
+    "process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "const": "SHA-256"
+        },
+        "value": "kv.details_targetHash"
+       }
+      }
+     ]
+    },
+    "process.file.signer": "kv.details_targetSignatureSignerName",
+    "process.file.version": "kv.details_targetFileVersion",
+    "process.file.company_name": "kv.details_targetVersionCompanyName",
+    "process.file.product_name": "kv.details_targetProductName",
+    "process.file.description": "kv.details_targetFileDescription",
+    "process.cmd_line": "kv.details_targetCommandLine",
+    "actor.process.path": "kv.details_parentPath",
+    "actor.process.name": {
+     "path": "kv.details_parentPath",
+     "type": "basename"
+    },
+    "actor.process.cmd_line": "kv.details_parentCommandLine",
+    "rule.name": "kv.details_ruleName",
+    "rule.uid": "kv.details_ruleId",
+    "rule.type": "kv.details_ruleEvent"
+   }
+  },
+  {
+   "name": "controle-de-conteudo-web",
+   "when": {
+    "path": "kv.eventType",
+    "in": [
+     "webContentControl.blocked",
+     "reputationBasedBrowsing.blocked"
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4002
+    },
+    "class_name": {
+     "const": "HTTP Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "activity_name": {
+     "const": "Blocked Request"
+    },
+    "disposition": {
+     "const": "Blocked"
+    },
+    "disposition_id": {
+     "const": 2
+    },
+    "action": {
+     "const": "Denied"
+    },
+    "action_id": {
+     "const": 2
+    },
+    "severity_id": {
+     "lookup": "kv.eventType",
+     "table": {
+      "reputationBasedBrowsing.blocked": 3
+     },
+     "default": 2
+    },
+    "http_request.url.url_string": "kv.details_url",
+    "http_request.url.hostname": {
+     "path": "kv.details_url",
+     "type": "url_host"
+    },
+    "http_request.url.categories": {
+     "path": "kv.details_categories",
+     "type": "split:,"
+    },
+    "dst_endpoint.hostname": {
+     "path": "kv.details_url",
+     "type": "url_host"
+    },
+    "src_endpoint.ip": {
+     "path": "hostips",
+     "type": "first"
+    },
+    "src_endpoint.hostname": "kv.deviceName",
+    "actor.process.name": "kv.details_process",
+    "status_detail": "kv.details_reason",
+    "finding_info.title": "kv.message",
+    "finding_info.types": {
+     "list": [
+      "kv.details_reason"
+     ]
+    }
+   }
+  },
+  {
+   "name": "controle-de-dispositivo",
+   "when": {
+    "path": "kv.eventType",
+    "startswith": "deviceControl."
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "disposition": {
+     "const": "Blocked"
+    },
+    "disposition_id": {
+     "const": 2
+    },
+    "action": {
+     "const": "Denied"
+    },
+    "action_id": {
+     "const": 2
+    },
+    "severity_id": {
+     "const": 2
+    },
+    "finding_info.title": "kv.message",
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Device Control"
+      }
+     ]
+    },
+    "rule.name": "kv.details_appliedRule",
+    "peripheral_device.name": "kv.details_deviceName",
+    "peripheral_device.uid": "kv.details_deviceId"
+   }
+  },
+  {
+   "name": "malware",
+   "when": {
+    "path": "kv.eventType",
+    "startswith": "fileScanning."
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "disposition": {
+     "lookup": "kv.action",
+     "table": {
+      "blocked": "Blocked",
+      "quarantined": "Quarantined",
+      "deleted": "Deleted",
+      "disinfected": "Corrected",
+      "renamed": "Isolated"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": "kv.action",
+     "table": {
+      "blocked": 2,
+      "quarantined": 3,
+      "deleted": 5,
+      "disinfected": 11,
+      "renamed": 4
+     },
+     "default": 15
+    },
+    "action": {
+     "const": "Denied"
+    },
+    "action_id": {
+     "const": 2
+    },
+    "severity_id": {
+     "const": 4
+    },
+    "finding_info.title": {
+     "first": [
+      "kv.malwareName",
+      "kv.details_infectionName"
+     ]
+    },
+    "finding_info.desc": "kv.message",
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Malware"
+      },
+      "kv.details_fileScanningType"
+     ]
+    },
+    "malware": {
+     "list": [
+      {
+       "object": {
+        "name": {
+         "first": [
+          "kv.malwareName",
+          "kv.details_infectionName"
+         ]
+        },
+        "classification": "kv.details_infectionType"
+       }
+      }
+     ]
+    },
+    "file.path": {
+     "first": [
+      "kv.details_path",
+      "kv.infectedObject"
+     ]
+    },
+    "file.name": {
+     "first": [
+      {
+       "path": "kv.details_path",
+       "type": "basename"
+      },
+      "kv.details_object",
+      {
+       "path": "kv.infectedObject",
+       "type": "basename"
+      }
+     ]
+    },
+    "file.size": {
+     "path": "kv.details_size",
+     "type": "int"
+    },
+    "file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "const": "SHA-256"
+        },
+        "value": "kv.details_sha256"
+       }
+      },
+      {
+       "object": {
+        "algorithm": {
+         "const": "SHA-1"
+        },
+        "value": "kv.details_sha1"
+       }
+      }
+     ]
+    },
+    "file.created_time": {
+     "path": "kv.details_created",
+     "type": "epoch_s"
+    },
+    "file.modified_time": {
+     "path": "kv.details_modified",
+     "type": "epoch_s"
+    },
+    "actor.process.path": {
+     "first": [
+      "kv.details_accessorPath",
+      "kv.details_creator"
+     ]
+    },
+    "actor.process.name": {
+     "path": "kv.details_accessorPath",
+     "type": "basename"
+    },
+    "remediation.desc": "kv.details_recommendedAction"
+   }
+  }
+ ],
+ "unmapped": [
+  "kv",
+  "win.EventData"
+ ],
+ "unmapped_drop": [
+  "details_eventXml",
+  "eventType",
+  "deviceName",
+  "deviceId",
+  "suser",
+  "accountName",
+  "message",
+  "details_clientTimestamp",
+  "details_hostIpAddress",
+  "details_userName",
+  "details_userPrincipalName",
+  "details_profileName",
+  "details_profileId",
+  "details_profileVersion",
+  "details_alertType",
+  "details_throttledCount"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code",
+  "device.hostname"
+ ],
+ "tests": []
+}

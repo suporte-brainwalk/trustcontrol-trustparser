@@ -1,0 +1,31 @@
+{% macro theme_toggle() -%}
+<button type="button" class="theme-t" data-theme-toggle title="Alternar modo claro / escuro" aria-label="Alternar modo claro ou escuro">
+  <span class="sun"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.55 1.55M17.15 17.15l1.55 1.55M5.3 18.7l1.55-1.55M17.15 6.85l1.55-1.55"/></svg></span>
+  <span class="moon"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M20.2 14.6A8.5 8.5 0 0 1 9.4 3.8a.6.6 0 0 0-.8-.7A9.3 9.3 0 1 0 20.9 15.4a.6.6 0 0 0-.7-.8z"/></svg></span>
+</button>
+{%- endmacro %}
+
+{% macro sev(s) -%}
+{% set label = {'critical':'CRÍTICA','high':'ALTA','medium':'MÉDIA','low':'BAIXA'}.get(s, 'N/D') %}
+<span class="chip sev-{{ {'critical':'Crítica','high':'Alta','medium':'Média','low':'Baixa'}.get(s,'NA') }}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro kev(v) -%}{% if v %}<span class="chip kev">CISA KEV</span>{% endif %}{%- endmacro %}
+
+{% macro status_dot(st, text) -%}<span class="st {{ st }}">{{ text }}</span>{%- endmacro %}
+
+{% macro csrf() -%}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{%- endmacro %}
+
+{% macro date_field(label, name, value) -%}
+<label class="date-f">{{ label }}<span class="date-box">
+  <input type="text" class="date-br" name="{{ name }}" inputmode="numeric" maxlength="10" placeholder="DD/MM/AAAA" value="{{ value or '' }}" data-autosubmit-date>
+  <button type="button" class="date-cal" title="Abrir calendário" aria-label="Abrir calendário"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+  <input type="date" class="date-native" tabindex="-1" aria-hidden="true">
+</span></label>
+{%- endmacro %}
+
+{% macro flashes() -%}
+{% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}
+<div class="testmode flash {{ 'alert-err' if cat == 'error' else ('alert-warn' if cat == 'warn' else '') }}" role="status">{{ '⚠' if cat in ('error','warn') else '✓' }} <div>{{ m }}</div></div>
+{% endfor %}{% endwith %}
+{%- endmacro %}

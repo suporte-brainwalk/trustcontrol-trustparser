@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Pessoas{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Pessoas{% endblock %}
+{% block content %}
+<div class="grid g2"><div class="card"><div class="tw"><table class="t"><tr><th>Pessoa</th><th>Perfil</th><th>Situação</th>{% if is_manager %}<th></th>{% endif %}</tr>
+{% for u in users %}<tr><td><b>{{ u.name }}</b><div class="sm muted">{{ u.email }}</div></td><td>{{ {'manager':'Gestor','reader':'Leitor'}[u.role] }}</td><td class="sm">{{ {'active':'ativo','invited':'convidado','suspended':'suspenso'}[u.status] }}</td>
+{% if is_manager %}<td class="nowrap">{% if u.id != current_user.id %}<form method="post" class="inline-form">{{ csrf() }}<input type="hidden" name="email" value="{{ u.email }}">{% if u.status == 'invited' %}<button class="link-btn" name="action" value="resend">reenviar</button> · {% endif %}<button class="link-btn danger" name="action" value="remove" data-confirm-btn="Remover {{ u.email }}?">remover</button></form>{% endif %}</td>{% endif %}</tr>{% endfor %}</table></div></div>
+{% if is_manager %}<div class="card"><div class="hd"><h3>Convidar</h3></div><div class="bd"><form method="post">{{ csrf() }}<input type="hidden" name="action" value="add">
+<div class="fg"><label class="f">Nome</label><input class="i" name="name"></div><div class="fg"><label class="f">E-mail *</label><input class="i" type="email" name="email" required></div>
+<div class="fg"><label class="f">Perfil</label><select class="i" name="role"><option value="reader">Leitor</option><option value="manager">Gestor</option></select></div><button class="btn p">Enviar convite</button></form></div></div>{% endif %}
+</div>
+{% endblock %}

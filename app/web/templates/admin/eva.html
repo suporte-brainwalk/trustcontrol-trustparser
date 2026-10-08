@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}EVA{% endblock %}{% block crumb %}Sistema{% endblock %}{% block heading %}EVA · suporte e manutenção por IA{% endblock %}
+{% block content %}
+{% set ok = age is not none and age < 300 %}
+<div class="grid g4" style="margin-bottom:16px">
+  <div class="card kpi {{ 'accent' if ok else 'red' }}"><div class="l">Status</div><div class="v" style="font-size:20px">{{ 'Ativa' if ok else ('Nunca iniciada' if age is none else 'Parada') }}</div><div class="s">{% if age is not none %}último sinal há {{ age }} s{% else %}sem sinal de vida{% endif %}</div></div>
+  <div class="card kpi blue"><div class="l">Modo</div><div class="v" style="font-size:20px">{{ 'Demonstração' if mode == 'demo' else 'Ativa para a lista' }}</div><div class="s">{{ 'responde somente ao Rogério' if mode == 'demo' else 'donos e membros autorizados' }}</div></div>
+  <div class="card kpi purple"><div class="l">Fila</div><div class="v">{{ st.queued + st.processing }}</div><div class="s">pedidos aguardando/em execução</div></div>
+  <div class="card kpi {{ 'accent' if hb.get('auth_ok', True) else 'red' }}"><div class="l">Verificações</div><div class="v" style="font-size:16px">{{ '✓' if hb.get('imap_ok') else '✗' }} e-mail · {{ '✓' if hb.get('smtp_ok') else '✗' }} envio · {{ '✓' if hb.get('auth_ok') else '✗' }} IA</div><div class="s">{% if hb.get('ai_limit_remaining_usd') is not none %}saldo do limite de IA: US$ {{ '%.2f'|format(hb.get('ai_limit_remaining_usd')) }}{% else %}{{ mailbox }}{% endif %}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Quem pode falar com a EVA</h3><span class="sm muted" style="margin-left:6px">{{ wl|selectattr('active')|list|length }} ativa(s)</span></div>
+<div class="tw"><table class="t"><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Incluído por</th><th>Desde</th><th></th></tr>
+{% for w in wl %}<tr class="{{ '' if w.active else 'muted-row' }}"><td>{{ w.name or '—' }}</td><td>{{ w.email }}</td>
+  <td><span class="tag {{ 'g' if w.role == 'owner' }}">{{ 'Dono' if w.role == 'owner' else 'Membro' }}</span>{% if not w.active %} <span class="tag">removido</span>{% endif %}</td>
+  <td class="sm">{{ w.added_by }}</td><td class="sm">{{ w.added_at|d }}</td>
+  <td class="nowrap">{% if w.active %}
+    {% set last_owner = w.role == 'owner' and active_owners <= 1 %}
+    {% if w.role == 'member' %}
+      <form method="post" action="{{ url_for('eva.whitelist_role', email=w.email) }}" class="inline-form" data-confirm="Tornar {{ w.email }} dono(a)? Donos podem autorizar e remover membros por e-mail e pela API.">{{ csrf() }}<input type="hidden" name="role" value="owner"><button class="link-btn" type="submit">tornar dono</button></form>
+    {% elif not last_owner %}
+      <form method="post" action="{{ url_for('eva.whitelist_role', email=w.email) }}" class="inline-form" data-confirm="Tornar {{ w.email }} membro?">{{ csrf() }}<input type="hidden" name="role" value="member"><button class="link-btn" type="submit">tornar membro</button></form>
+    {% endif %}
+    {% if last_owner %}<span class="sm muted" title="A lista precisa ter ao menos um dono ativo.">último dono</span>{% else %}
+      <form method="post" action="{{ url_for('eva.whitelist_remove', email=w.email) }}" class="inline-form" data-confirm="Remover {{ w.email }}? A EVA deixa de atender essa pessoa (e-mail e API) na hora.">{{ csrf() }}<button class="link-btn danger" type="submit">remover</button></form>
+    {% endif %}
+  {% else %}
+    <form method="post" action="{{ url_for('eva.whitelist_add') }}" class="inline-form">{{ csrf() }}<input type="hidden" name="email" value="{{ w.email }}"><input type="hidden" name="name" value="{{ w.name }}"><input type="hidden" name="role" value="member"><button class="link-btn" type="submit">reativar como membro</button></form>
+  {% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Ninguém autorizado ainda.</td></tr>{% endfor %}</table></div>
+<div class="bd"><form method="post" action="{{ url_for('eva.whitelist_add') }}" class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">{{ csrf() }}
+  <div class="fg" style="flex:1;min-width:200px"><label class="f" for="eva-email">E-mail corporativo *</label><input class="i" id="eva-email" name="email" type="email" maxlength="254" required placeholder="nome@empresa.com.br"></div>
+  <div class="fg" style="flex:1;min-width:160px"><label class="f" for="eva-name">Nome</label><input class="i" id="eva-name" name="name" maxlength="160"></div>
+  <div class="fg" style="min-width:140px"><label class="f" for="eva-role">Papel</label><select class="i" id="eva-role" name="role"><option value="member">Membro</option><option value="owner">Dono</option></select></div>
+  <button class="btn p" type="submit">Autorizar</button></form></div>
+<div class="bd note" style="margin:0"><b>Membros</b> pedem ajustes, manutenção e tiram dúvidas com a EVA por e-mail ({{ mailbox }}) ou pela API.
+  <b>Donos</b> também autorizam e removem membros (por e-mail à EVA ou pela API). Donos só são incluídos, rebaixados ou removidos aqui,
+  e a lista nunca fica sem dono. O e-mail da pessoa precisa chegar assinado (DKIM) pelo domínio dela. O Rogério recebe cópia de todas
+  as conversas e os donos recebem aviso de toda mudança nesta lista.</div></div>
+
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Modo</h3></div><div class="bd">
+  <form method="post" action="{{ url_for('eva.set_mode') }}" class="row" style="gap:10px;align-items:center;flex-wrap:wrap"
+        data-confirm="{{ 'Colocar a EVA em modo demonstração? Só o Rogério será atendido.' if mode == 'ativo' else 'Liberar a EVA para todas as pessoas autorizadas?' }}">{{ csrf() }}
+    <input type="hidden" name="mode" value="{{ 'demo' if mode == 'ativo' else 'ativo' }}">
+    <span>Hoje: <b>{{ 'ativa para a lista' if mode == 'ativo' else 'demonstração (só o Rogério)' }}</b>.</span>
+    <button class="btn {{ 'o' if mode == 'ativo' else 'p' }} sm" type="submit">{{ 'Voltar para demonstração' if mode == 'ativo' else 'Liberar para a lista' }}</button>
+  </form>
+  <p class="sm muted" style="margin:10px 0 0">A demonstração funciona como freio de emergência: os pedidos das demais pessoas ficam registrados, mas não são atendidos.</p>
+</div></div>
+
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Conversas</h3></div>
+<div class="tw"><table class="t"><tr><th>Atualizada</th><th>Solicitante</th><th>Assunto</th><th>Situação</th><th>Pendências</th><th></th></tr>
+{% for t in threads %}<tr><td class="sm nowrap">{{ t.updated_at|dt }}</td><td class="sm">{{ t.requester }}</td><td style="overflow-wrap:anywhere">{{ t.subject }}</td>
+  <td><span class="st {{ 'ok' if t.state == 'concluido' else ('err' if t.state == 'parado' else 'warn') }}">{{ STATE_PT.get(t.state, t.state) }}</span></td>
+  <td class="sm muted">{% for p in (t.pending or [])[:3] %}<div>• {{ p }}</div>{% else %}—{% endfor %}</td>
+  <td class="nowrap">{% if t.state not in ('concluido',) %}<form method="post" action="{{ url_for('eva.thread_state', tid=t.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="state" value="concluido"><button class="link-btn" type="submit">encerrar</button></form>{% endif %}
+    {% if t.state not in ('parado', 'concluido') %}<form method="post" action="{{ url_for('eva.thread_state', tid=t.id) }}" class="inline-form" data-confirm="Parar os lembretes desta conversa?">{{ csrf() }}<input type="hidden" name="state" value="parado"><button class="link-btn" type="submit">parar lembretes</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Nenhuma conversa ainda.</td></tr>{% endfor %}</table></div></div>
+
+<div class="card"><div class="hd"><h3>Histórico de pedidos</h3></div>
+<div class="tw"><table class="t"><tr><th>Recebido</th><th>De</th><th>Tipo</th><th>Resumo</th><th>Resultado</th><th>Versão</th></tr>
+{% for r in reqs %}<tr><td class="sm nowrap">{{ r.received_at|dt }}</td><td class="sm">{{ r.sender }}<div><span class="tag {{ 'g' if (r.details or {}).get('channel') == 'api' }}" title="Canal do pedido">{{ 'API' if (r.details or {}).get('channel') == 'api' else 'e-mail' }}</span></div></td>
+  <td><span class="tag">{{ INTENT_PT.get(r.intent, r.intent or '—') }}</span></td>
+  <td class="sm" style="max-width:380px;overflow-wrap:anywhere">{{ r.summary or r.subject }}{% if r.error %}<div class="danger">{{ r.error[:200] }}</div>{% endif %}</td>
+  <td class="sm nowrap">{% if r.status in ('queued','processing') %}<span class="st warn">{{ 'na fila' if r.status == 'queued' else 'em execução' }}</span>{% elif r.rolled_back %}<span class="st err">revertido</span>{% elif r.reverted_by %}<span class="st warn">desfeito</span>{% elif r.deployed %}<span class="st ok">aplicado</span>{% elif r.status == 'failed' %}<span class="st err">falhou</span>{% else %}<span class="st ok">respondido</span>{% endif %}</td>
+  <td class="sm mono">{{ r.commit_sha[:8] if r.commit_sha else '—' }}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Nenhum pedido ainda.</td></tr>{% endfor %}</table></div>
+<div class="bd note" style="margin:0">A EVA atende por e-mail em <b>{{ mailbox }}</b> e pela API (<span class="mono">/api/v1/eva/conversations</span>).
+  Toda alteração do Trust Parser passa por testes e verificação antes de ir para o ar e pode ser desfeita a pedido. Avisos operacionais
+  (EVA parada, IA, e-mail, disco) vão para o suporte.</div></div>
+{% endblock %}

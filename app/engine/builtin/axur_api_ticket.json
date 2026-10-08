@@ -1,0 +1,826 @@
+{
+ "slug": "axur-api-ticket",
+ "name": "Axur · tickets, detecções e vazamentos (API/webhook JSON)",
+ "vendor": "Axur",
+ "product": "Axur Platform (Digital Risk Protection)",
+ "description": "Um objeto JSON por linha vindo da Axur: ticket de GET /tickets-api/tickets (tickets[]) ou /tickets-api/ticket/{key} (blocos ticket + detection, chaves com ponto como 'open.date'), webhook ticket.* (event + ticket) e detecção de vazamento de credencial/cartão (item de /exposure-api ou de detections[] do webhook exposure.*). Tudo vira Detection Finding (tipo, referência/URL, domínio, IP, status, resolução, risco). Senha, número de cartão e CVV NUNCA vão para campos canônicos nem para 'unmapped'. Feito pela documentação (OpenAPI 1.0.83) — validar com resposta real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "all": [
+   {
+    "re": "^\\s*\\{"
+   },
+   {
+    "any": [
+     {
+      "contains": "\"ticketKey\""
+     },
+     {
+      "re": "\\\"type\\\"\\s*:\\s*\\\"(?:ticket|exposure)\\.[\\w.-]+\\\""
+     },
+     {
+      "re": "\\\"category\\\"\\s*:\\s*\\\"(?:credential|credit-cards?)\\\""
+     },
+     {
+      "contains": "\"credential.types\""
+     }
+    ]
+   }
+  ]
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "j"
+  },
+  {
+   "op": "set",
+   "to": "tk",
+   "value": {
+    "first": [
+     "j.ticket"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "dt",
+   "value": {
+    "first": [
+     "j.detection"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "cr",
+   "value": {
+    "first": [
+     "j.credential",
+     "j.card"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "ref",
+   "value": {
+    "first": [
+     {
+      "path": "tk.reference",
+      "type": "nil"
+     },
+     {
+      "path": "j.snapshots",
+      "type": "key:digitalLocation"
+     },
+     {
+      "path": "cr",
+      "type": "key:access.url"
+     },
+     {
+      "path": "j",
+      "type": "key:access.url"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "dtype",
+   "value": {
+    "first": [
+     {
+      "path": "dt.type",
+      "type": "nil"
+     },
+     {
+      "path": "tk.type",
+      "type": "nil"
+     },
+     {
+      "path": "j.category",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "leak_user",
+   "value": {
+    "first": [
+     {
+      "path": "cr.user",
+      "type": "nil"
+     },
+     {
+      "path": "j.user",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "safe",
+   "value": {
+    "object": {
+     "user_type": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:user.type"
+       },
+       {
+        "path": "j",
+        "type": "key:user.type"
+       }
+      ]
+     },
+     "password_type": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:password.type"
+       },
+       {
+        "path": "j",
+        "type": "key:password.type"
+       }
+      ]
+     },
+     "password_length": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:password.length"
+       },
+       {
+        "path": "j",
+        "type": "key:password.length"
+       }
+      ]
+     },
+     "access_url": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:access.url"
+       },
+       {
+        "path": "j",
+        "type": "key:access.url"
+       }
+      ]
+     },
+     "access_host": {
+      "path": "j",
+      "type": "key:access.host"
+     },
+     "credential_types": {
+      "first": [
+       "cr.types",
+       {
+        "path": "j",
+        "type": "key:credential.types"
+       }
+      ]
+     },
+     "source_name": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:source.name"
+       },
+       {
+        "path": "j",
+        "type": "key:source.name"
+       }
+      ]
+     },
+     "card_bin": {
+      "first": [
+       "cr.bin",
+       "j.bin"
+      ]
+     },
+     "card_brand": {
+      "first": [
+       {
+        "path": "cr",
+        "type": "key:brand"
+       },
+       {
+        "path": "j",
+        "type": "key:card.brand"
+       }
+      ]
+     }
+    }
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "tk",
+     "type": [
+      "key:last-update.date",
+      "time"
+     ]
+    },
+    {
+     "path": "dt",
+     "type": [
+      "key:close.date",
+      "time"
+     ]
+    },
+    {
+     "path": "dt",
+     "type": [
+      "key:open.date",
+      "time"
+     ]
+    },
+    {
+     "path": "tk",
+     "type": [
+      "key:creation.date",
+      "time"
+     ]
+    },
+    {
+     "path": "j.event.date",
+     "type": "time"
+    },
+    {
+     "path": "j.updated",
+     "type": "time"
+    },
+    {
+     "path": "j.created",
+     "type": "time"
+    },
+    {
+     "path": "j.detectionDate",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "Axur"
+  },
+  "metadata.product.name": {
+   "const": "Axur Platform"
+  },
+  "metadata.event_code": {
+   "first": [
+    "j.event.type",
+    {
+     "path": "dtype",
+     "type": "nil"
+    },
+    {
+     "const": "ticket"
+    }
+   ]
+  },
+  "metadata.event_subtype": "dtype",
+  "metadata.uid": {
+   "first": [
+    "tk.ticketKey",
+    "tk.key",
+    "j.id"
+   ]
+  },
+  "metadata.tenant_uid": {
+   "first": [
+    "tk.customerKey",
+    "tk.customer",
+    "j.customer"
+   ]
+  },
+  "metadata.sequence": "j.event.sequence",
+  "class_uid": {
+   "const": 2004
+  },
+  "class_name": {
+   "const": "Detection Finding"
+  },
+  "category_uid": {
+   "const": 2
+  },
+  "category_name": {
+   "const": "Findings"
+  },
+  "activity_id": {
+   "const": 1
+  },
+  "activity_name": {
+   "const": "Create"
+  },
+  "severity_id": {
+   "first": [
+    {
+     "lookup": {
+      "path": "dt.criticality",
+      "type": "lower"
+     },
+     "table": {
+      "high": 4,
+      "medium": 3,
+      "low": 2
+     }
+    },
+    {
+     "lookup": {
+      "regex": "^0?\\.(\\d)",
+      "path": {
+       "path": "dt",
+       "type": "key:prediction.risk"
+      }
+     },
+     "table": {
+      "0": 1,
+      "1": 1,
+      "2": 2,
+      "3": 2,
+      "4": 2,
+      "5": 3,
+      "6": 3,
+      "7": 3,
+      "8": 4,
+      "9": 4
+     }
+    },
+    {
+     "lookup": {
+      "regex": "^(1)(?:\\.0*)?$",
+      "path": {
+       "path": "dt",
+       "type": "key:prediction.risk"
+      }
+     },
+     "table": {
+      "1": 4
+     }
+    },
+    {
+     "const": 3
+    }
+   ]
+  },
+  "finding_info.uid": {
+   "first": [
+    "tk.ticketKey",
+    "tk.key",
+    "j.id"
+   ]
+  },
+  "finding_info.title": {
+   "first": [
+    {
+     "template": "{dtype}: {ref}",
+     "strict": true
+    },
+    {
+     "template": "{dtype}: {leak_user}",
+     "strict": true
+    },
+    "dtype",
+    {
+     "const": "Axur"
+    }
+   ]
+  },
+  "finding_info.types": {
+   "list": [
+    "dtype"
+   ]
+  },
+  "finding_info.src_url": "ref",
+  "finding_info.created_time": {
+   "first": [
+    {
+     "path": "tk",
+     "type": [
+      "key:creation.date",
+      "time"
+     ]
+    },
+    {
+     "path": "j.created",
+     "type": "time"
+    }
+   ]
+  },
+  "finding_info.first_seen_time": {
+   "first": [
+    {
+     "path": "dt",
+     "type": [
+      "key:open.date",
+      "time"
+     ]
+    },
+    {
+     "path": "j.detectionDate",
+     "type": "time"
+    }
+   ]
+  },
+  "finding_info.modified_time": {
+   "first": [
+    {
+     "path": "tk",
+     "type": [
+      "key:last-update.date",
+      "time"
+     ]
+    },
+    {
+     "path": "j.updated",
+     "type": "time"
+    }
+   ]
+  },
+  "finding_info.status": {
+   "first": [
+    {
+     "path": "dt.status",
+     "type": "nil"
+    },
+    {
+     "path": "tk.status",
+     "type": "nil"
+    },
+    {
+     "path": "j.status",
+     "type": "nil"
+    }
+   ]
+  },
+  "finding_info.verdict": {
+   "first": [
+    {
+     "path": "dt.resolution",
+     "type": "nil"
+    },
+    {
+     "path": "tk.resolution",
+     "type": "nil"
+    }
+   ]
+  },
+  "finding_info.risk_score": {
+   "path": "dt",
+   "type": [
+    "key:prediction.risk",
+    "float"
+   ]
+  },
+  "status_detail": {
+   "path": "dt",
+   "type": [
+    "key:resolution.reason",
+    "nil"
+   ]
+  },
+  "message": {
+   "first": [
+    {
+     "template": "Axur {dtype}: {ref}",
+     "strict": true
+    },
+    {
+     "template": "Axur {dtype}: {leak_user}",
+     "strict": true
+    },
+    {
+     "template": "Axur {j.event.type}",
+     "strict": true
+    }
+   ]
+  },
+  "dst_endpoint.hostname": {
+   "first": [
+    {
+     "path": "dt.host",
+     "type": "nil"
+    },
+    {
+     "path": "ref",
+     "type": "url_host"
+    }
+   ]
+  },
+  "dst_endpoint.ip": {
+   "path": "dt.ip",
+   "type": "ip"
+  },
+  "dst_endpoint.domain": {
+   "path": "dt.domain",
+   "type": "nil"
+  },
+  "dst_endpoint.isp": {
+   "path": "dt.isp",
+   "type": "nil"
+  },
+  "http_request.url.url_string": {
+   "path": "ref",
+   "type": "nil"
+  },
+  "user.name": {
+   "path": "leak_user",
+   "type": "user"
+  },
+  "user.email_addr": {
+   "regex": "^([^@\\s]+@[^@\\s]+)$",
+   "path": "leak_user"
+  },
+  "user.full_name": "leak_user",
+  "unmapped.assets": {
+   "first": [
+    "dt.assets",
+    "tk.assets",
+    "j.assets"
+   ]
+  },
+  "unmapped.tags": {
+   "first": [
+    "tk.tags",
+    "j.tags"
+   ]
+  }
+ },
+ "cases": [
+  {
+   "name": "webhook-ticket",
+   "when": {
+    "path": "j.event.type",
+    "startswith": "ticket."
+   },
+   "map": {
+    "activity_id": {
+     "lookup": "j.event.type",
+     "table": {
+      "ticket.created": 1,
+      "ticket.detection.opened": 1,
+      "ticket.detection.closed": 3
+     },
+     "default": 2
+    },
+    "activity_name": {
+     "lookup": "j.event.type",
+     "table": {
+      "ticket.created": "Create",
+      "ticket.detection.opened": "Create",
+      "ticket.detection.closed": "Close"
+     },
+     "default": "Update"
+    }
+   }
+  },
+  {
+   "name": "vazamento",
+   "when": {
+    "any": [
+     {
+      "path": "j.category",
+      "exists": true
+     },
+     {
+      "path": "leak_user",
+      "exists": true
+     },
+     {
+      "path": "j.event.type",
+      "startswith": "exposure."
+     }
+    ]
+   },
+   "map": {
+    "finding_info.types": {
+     "list": [
+      "dtype",
+      {
+       "path": "j",
+       "type": [
+        "key:credential.types",
+        "first"
+       ]
+      },
+      {
+       "path": "cr.types",
+       "type": "first"
+      }
+     ]
+    },
+    "severity_id": {
+     "lookup": {
+      "path": "j.status",
+      "type": "upper"
+     },
+     "table": {
+      "NEW": 4,
+      "IN_TREATMENT": 4,
+      "SOLVED": 2,
+      "DISCARDED": 1
+     },
+     "default": 3
+    },
+    "metadata.log_name": {
+     "const": "exposure"
+    }
+   }
+  },
+  {
+   "name": "ticket",
+   "when": {
+    "path": "tk",
+    "exists": true
+   },
+   "map": {
+    "metadata.log_name": {
+     "const": "tickets"
+    },
+    "activity_id": {
+     "lookup": {
+      "path": "dt.status",
+      "type": "nil"
+     },
+     "table": {
+      "closed": 3
+     },
+     "default": 2
+    },
+    "activity_name": {
+     "lookup": {
+      "path": "dt.status",
+      "type": "nil"
+     },
+     "table": {
+      "closed": "Close"
+     },
+     "default": "Update"
+    }
+   }
+  }
+ ],
+ "unmapped": [
+  "tk",
+  "dt",
+  "safe",
+  "j"
+ ],
+ "unmapped_drop": [
+  "password",
+  "password.value",
+  "card",
+  "card.number",
+  "card.cvv",
+  "card.month",
+  "card.year",
+  "cvv",
+  "credential.password.value",
+  "credential.password.value.masked",
+  "sha256CreditCardNumberHash",
+  "ticket",
+  "detection",
+  "credential",
+  "event",
+  "reference",
+  "ticketKey",
+  "key",
+  "customerKey",
+  "customer",
+  "type",
+  "status",
+  "resolution",
+  "host",
+  "ip",
+  "domain",
+  "isp",
+  "assets",
+  "tags",
+  "id",
+  "user",
+  "created",
+  "updated",
+  "category",
+  "detections"
+ ],
+ "require": [
+  "time",
+  "metadata.uid"
+ ],
+ "tests": [
+  {
+   "name": "ticket de phishing descartado (exemplo do OpenAPI)",
+   "input": "{\"ticket\":{\"reference\":\"https://fraud.acme.com\",\"ticketKey\":\"h7dw97\",\"customerKey\":\"ACME\",\"creation.collector\":\"ctlog\",\"last-update.date\":\"2024-03-13T18:20:19-03:00\",\"creation.collection\":\"6469\",\"creation.originator\":\"collector\",\"creation.date\":\"2024-03-13T06:58:12-03:00\"},\"detection\":{\"close.date\":\"2024-03-13T18:20:19-03:00\",\"creation.collector\":\"ctlog\",\"open.date\":\"2024-03-13T06:58:12-03:00\",\"prediction.languages\":[\"EN\"],\"prediction.has-authentication-form\":\"false\",\"isp\":\"Cloudflare, Inc.\",\"ip\":\"104.21.95.254\",\"type\":\"phishing\",\"resolution\":\"discarded\",\"prediction.main-language\":\"EN\",\"resolution.reason\":\"\",\"assets\":[\"ACME\"],\"creation.collection\":\"6469\",\"domain\":\"acme.com\",\"creation.originator\":\"collector\",\"host\":\"acme.com\",\"prediction.risk\":\"0.58\",\"prediction.brand-logo\":\"0.0393319\",\"status\":\"closed\",\"group\":[\"threat_validation\"]},\"texts\":[],\"snapshots\":{\"ipFilter\":{\"filtering\":true,\"countries\":[]},\"content\":{\"title\":\"404 Not Found\",\"httpStatusCode\":{\"code\":404}},\"domainInfo\":{\"nameServers\":{\"hostnames\":[],\"ipAddresses\":[]}},\"isp\":{\"name\":\"Cloudflare, Inc.\",\"location\":{\"country\":{\"name\":\"United States\"}}},\"digitalLocation\":{\"url\":\"https://fraud.acme.com\",\"host\":{\"name\":\"acme.com\",\"domain\":{\"name\":\"acme.com\"},\"ip\":{\"address\":\"104.21.95.254\"}}},\"referenceInfo\":{\"originalReference\":\"acme.com\",\"redirectChain\":[\"http://acme.com\",\"https://acme.com/\"],\"finalReference\":\"https://acme.com\"},\"correlatedLinks\":{}},\"attachments\":[{\"name\":\"whois_0107…e757e47ee0b64370a0d1d70a2ed50c93.txt\",\"url\":\"https://api-dit.axreng.com/gateway/1.0/api/files/file/whois_0107…txt\"}]}",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2024-03-13T21:20:19.000Z",
+    "class_uid": 2004,
+    "activity_id": 3,
+    "metadata.uid": "h7dw97",
+    "finding_info.title": "phishing: https://fraud.acme.com",
+    "finding_info.types": [
+     "phishing"
+    ],
+    "finding_info.status": "closed",
+    "finding_info.verdict": "discarded",
+    "finding_info.risk_score": 0.58,
+    "severity_id": 3,
+    "dst_endpoint.hostname": "acme.com",
+    "dst_endpoint.ip": "104.21.95.254",
+    "finding_info.first_seen_time": "2024-03-13T09:58:12.000Z",
+    "metadata.tenant_uid": "ACME",
+    "unmapped.group": [
+     "threat_validation"
+    ],
+    "unmapped.assets": [
+     "ACME"
+    ]
+   }
+  },
+  {
+   "name": "perfil falso em rede social em incidente (exemplo do OpenAPI)",
+   "input": "{\"ticket\":{\"reference\":\"https://www.facebook.com/61559521153572\",\"ticketKey\":\"ui40ay\",\"customerKey\":\"ACME\",\"creation.collector\":\"facebook\",\"last-update.date\":\"2024-08-06T17:16:39-03:03\",\"creation.collection\":\"92056\",\"creation.originator\":\"collector\",\"creation.date\":\"2024-07-17T09:41:01-03:03\",\"tags\":[\"TAG\"]},\"detection\":{\"creation.collector\":\"facebook\",\"open.date\":\"2024-07-17T09:41:01-03:03\",\"incident.date\":\"2024-08-06T17:16:27-03:03\",\"isp\":\"Facebook\",\"ip\":\"157.240.229.35\",\"domain.registrar\":\"RegistrarSafe, LLC\",\"type\":\"fake-social-media-profile\",\"resolution\":\"\",\"resolution.reason\":\"\",\"assets\":[\"BACME\"],\"creation.collection\":\"92056\",\"domain\":\"facebook.com\",\"creation.originator\":\"collector\",\"host\":\"www.facebook.com\",\"prediction.risk\":\"0.96\",\"prediction.brand-logo\":\"1.0\",\"status\":\"incident\",\"prediction.brand-name\":\"0.9955\",\"group\":[null]},\"texts\":[{\"author\":\"John\",\"content\":\"text\",\"date\":\"2024-09-13T13:24:15-03:03\"}],\"snapshots\":{\"content\":{\"title\":\"ACME\",\"httpStatusCode\":{\"code\":200,\"message\":\"OK\"},\"hashMD5\":{\"value\":\"a37e09a41ebf0874244a683da9d9a961\"}},\"domainInfo\":{\"status\":\"Registered\",\"registrar\":\"RegistrarSafe, LLC\",\"registrarEmail\":\"abusecomplaints@registrarsafe.com\",\"registrant\":\"Domain Admin\",\"registrantEmail\":\"domain@fb.com\",\"createdAt\":\"1997-03-28T20:57:00-03:03\",\"updatedAt\":\"2024-04-23T20:57:00-03:03\"}}}",
+   "udm_generic_ok": true,
+   "expect": {
+    "severity_id": 4,
+    "activity_id": 2,
+    "finding_info.status": "incident",
+    "dst_endpoint.hostname": "www.facebook.com",
+    "http_request.url.url_string": "https://www.facebook.com/61559521153572",
+    "unmapped.snapshots.domainInfo.registrar": "RegistrarSafe, LLC"
+   }
+  },
+  {
+   "name": "webhook ticket.detection.opened (exemplo do OpenAPI)",
+   "input": "{\"event\":{\"type\":\"ticket.detection.opened\",\"date\":1733947747323,\"sequence\":9744269},\"ticket\":{\"key\":\"05vbhy\",\"customer\":\"ACME\",\"detection\":0,\"reference\":\"https://www.test.com\",\"type\":\"phishing\",\"assets\":[\"ACME\"]}}",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2024-12-11T20:09:07.323Z",
+    "metadata.event_code": "ticket.detection.opened",
+    "activity_id": 1,
+    "metadata.uid": "05vbhy",
+    "finding_info.title": "phishing: https://www.test.com",
+    "metadata.sequence": 9744269
+   }
+  },
+  {
+   "name": "credencial vazada do webhook exposure.updated (exemplo do OpenAPI) sem senha",
+   "input": "{\"id\":\"2025052911574317566C29A490F30E33B\",\"status\":\"IN_TREATMENT\",\"category\":\"credential\",\"created\":1733948640366,\"updated\":1752167332650,\"customer\":\"ACME\",\"assets\":[\"ACM\"],\"tags\":[\"Urgent\"],\"credential\":{\"types\":[\"employee\",\"user\"],\"user\":\"john@acme.com\",\"user.type\":\"EMAIL\",\"password\":\"p@ssword\",\"password.type\":\"PLAIN\",\"access.url\":\"https://vazou.com/login\",\"source.name\":\"Deep/Dark Web - Telegram\"}}",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2025-07-10T17:08:52.650Z",
+    "metadata.parser_case": "vazamento",
+    "user.name": "john",
+    "user.email_addr": "john@acme.com",
+    "finding_info.types": [
+     "credential",
+     "employee"
+    ],
+    "severity_id": 4,
+    "unmapped.access_url": "https://vazou.com/login",
+    "unmapped.password_type": "PLAIN",
+    "unmapped.password": null,
+    "unmapped.credential": null
+   }
+  },
+  {
+   "name": "credencial vazada da Exposure API (exemplo do OpenAPI) sem senha",
+   "input": "{\"source.name\":\"Deep/Dark Web - Telegram\",\"message.chat.name\":\"🧩 [LB.SB] GoldPack\",\"message.timestamp\":\"2024-11-27T10:24:31\",\"source.timestamp\":\"2024-11-27T10:24:31\",\"access.host\":\"com.nvt.cs\",\"password\":\"DtsKcJvlpM\",\"assets\":[\"TEST\"],\"message.chat.type\":\"SUPERGROUP\",\"password.type\":\"PLAIN\",\"id\":\"20241127131956500FC0C39483D76B7A0\",\"user.emailDomain\":\"example.com\",\"message.type\":\"DOCUMENT\",\"created\":\"2025-01-27T20:18:36\",\"document.timestamp\":\"2024-11-27T13:19:56\",\"file.name\":\"78kk_URLPW_LB.SB_Part_12-30.txt\",\"credential.types\":[\"user\"],\"message.author.type\":\"CHAT\",\"password.length\":10,\"detectionDate\":\"2024-11-27T12:56:31\",\"user.type\":\"EMAIL\",\"access.url\":\"https://com.nvt.cs/\",\"user\":\"test@example.com\",\"updated\":\"2025-01-27T20:20:38\",\"status\":\"DISCARDED\",\"customer\":\"BEES\"}",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2025-01-27T20:20:38.000Z",
+    "metadata.uid": "20241127131956500FC0C39483D76B7A0",
+    "user.email_addr": "test@example.com",
+    "severity_id": 1,
+    "finding_info.status": "DISCARDED",
+    "unmapped.password_length": 10,
+    "unmapped.password_type": "PLAIN",
+    "unmapped.password": null
+   }
+  },
+  {
+   "name": "cartão vazado sem número nem CVV (sintético)",
+   "input": "{\"id\":\"20261008120000000AAAAAAAAAAAAAAAA\",\"status\":\"NEW\",\"category\":\"credit-cards\",\"created\":1791460800000,\"updated\":1791460800000,\"customer\":\"ACME\",\"assets\":[\"ACME\"],\"tags\":[],\"card\":{\"number\":\"4111111111111111\",\"cvv\":\"123\",\"month\":\"12\",\"year\":\"2030\",\"bin\":\"411111\",\"source.name\":\"Deep/Dark Web - Telegram\"}}",
+   "udm_generic_ok": true,
+   "expect": {
+    "finding_info.title": "credit-cards",
+    "unmapped.card_bin": "411111",
+    "unmapped.card": null,
+    "unmapped.source_name": "Deep/Dark Web - Telegram",
+    "metadata.tenant_uid": "ACME"
+   }
+  }
+ ]
+}

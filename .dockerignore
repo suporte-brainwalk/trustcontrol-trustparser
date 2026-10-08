@@ -1,0 +1,9 @@
+.git
+.env
+**/__pycache__
+
+
+
+tests/e2e/screens
+*.xlsx
+tools/jarbas

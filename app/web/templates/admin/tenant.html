@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import st_badge, syslog_box %}
+{% block title %}{{ t.name }}{% endblock %}{% block crumb %}Tenants{% endblock %}{% block heading %}{{ t.name }}{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px"><div class="bd row">
+  <div style="flex:1;min-width:220px"><div class="row"><h2 style="margin:0;font-size:20px;font-weight:500">{{ t.name }}</h2><span class="st {{ 'ok' if t.status == 'active' else 'warn' }}">{{ 'Ativo' if t.status == 'active' else 'Suspenso' }}</span>{% if t.internal %}<span class="tag g">interno Trust</span>{% endif %}</div>
+    <div class="sm muted">{{ t.segment or 'sem segmento' }} · criado em {{ t.created_at|d }} · id {{ t.id }}</div></div>
+  <button class="btn o sm" type="button" data-open-dialog="dlg-edit">Editar dados</button>
+  <form method="post" action="{{ url_for('admin.tenant_update', tid=t.id) }}" class="inline-form" data-confirm="{{ 'Suspender? Syslog, coletas e envios deste tenant param e os usuários perdem acesso.' if t.status == 'active' else 'Reativar este tenant?' }}">{{ csrf() }}<input type="hidden" name="status" value="{{ 'suspended' if t.status == 'active' else 'active' }}"><input type="hidden" name="tab" value="{{ tab }}"><button class="btn o sm" type="submit">{{ 'Suspender' if t.status == 'active' else 'Reativar' }}</button></form>
+</div></div>
+{% set tabs = [('fontes','Fontes (' ~ (sources|length) ~ ')'),('ips','IPs liberados (' ~ (ips|length) ~ ')'),('destinos','Destinos (' ~ (dests|length) ~ ')'),('pessoas','Pessoas (' ~ (users|length) ~ ')')] %}
+<div class="tabs">{% for k, l in tabs %}<a class="tab {{ 'on' if tab == k }}" href="{{ url_for('admin.tenant', tid=t.id, tab=k) }}">{{ l }}</a>{% endfor %}</div>
+{% if tab == 'fontes' %}
+<div class="card"><div class="hd"><h3>Fontes de entrada</h3><span class="sp"></span><a class="btn p sm" href="{{ url_for('admin.sources', tenant_id=t.id) }}#nova">+ Nova fonte</a></div>
+<div class="tw"><table class="t"><tr><th>Fonte</th><th>Tipo</th><th>Parser</th><th>Último evento</th><th>Recebidos</th><th>Não rec.</th></tr>
+{% for s in sources %}<tr class="{{ 'muted-row' if not s.active }}"><td><a href="{{ url_for('admin.source', sid=s.id) }}"><b>{{ s.name }}</b></a></td><td>{{ {'syslog':'Syslog','upload':'Upload','api':'API · ' ~ s.connector}[s.transport] }}</td>
+<td class="sm">{{ s.parser.name if s.parser else 'autodetectar' }}</td><td class="sm">{{ s.last_event_at|dt }}</td><td>{{ s.events_total|num }}</td><td>{{ s.unparsed_total|num }}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Nenhuma fonte.</td></tr>{% endfor %}</table></div></div>
+{% elif tab == 'ips' %}
+<div class="grid g2"><div class="card"><div class="hd"><h3>IPs que podem enviar syslog</h3></div>
+<div class="tw"><table class="t"><tr><th>IP / faixa</th><th>Protocolos</th><th>Fonte</th><th>Descrição</th><th></th></tr>
+{% for a in ips %}<tr class="{{ 'muted-row' if not a.active }}"><td class="mono">{{ a.cidr }}</td><td>{% for p in a.protocols %}<span class="tag">{{ p|upper }}</span>{% endfor %}</td><td class="sm">{{ a.source.name if a.source else 'qualquer fonte do tenant' }}</td><td class="sm">{{ a.description }}</td>
+<td class="nowrap"><form method="post" action="{{ url_for('admin.firewall_action', aid=a.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="next" value="{{ url_for('admin.tenant', tid=t.id, tab='ips') }}"><button class="link-btn" name="action" value="toggle">{{ 'desativar' if a.active else 'ativar' }}</button> · <button class="link-btn danger" name="action" value="delete" data-confirm-btn="Remover {{ a.cidr }}?">remover</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty-state">Nenhum IP liberado.</td></tr>{% endfor %}</table></div></div>
+<div class="card"><div class="hd"><h3>Liberar IP</h3></div><div class="bd"><form method="post" action="{{ url_for('admin.firewall_new') }}">{{ csrf() }}<input type="hidden" name="tenant_id" value="{{ t.id }}"><input type="hidden" name="next" value="{{ url_for('admin.tenant', tid=t.id, tab='ips') }}">
+  <div class="fg"><label class="f">IP ou faixa (IPv4) *</label><input class="i mono" name="cidr" required placeholder="200.100.50.10 ou 200.100.50.0/28"></div>
+  <div class="fg"><label class="f">Protocolos</label><div class="row">{% for p, l in [('tls','TLS 6514'),('tcp','TCP 514'),('udp','UDP 514')] %}<label class="row" style="gap:6px"><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p == 'tls' }}> {{ l }}</label>{% endfor %}</div></div>
+  <div class="fg"><label class="f">Fonte</label><select class="i" name="source_id"><option value="">Qualquer fonte deste tenant</option>{% for s in sources if s.transport == 'syslog' %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">Descrição</label><input class="i" name="description" maxlength="200" placeholder="Ex.: Firebox matriz"></div>
+  <label class="row sm" style="gap:6px"><input type="checkbox" name="allow_wide" value="1"> confirmo liberar faixa maior que /16</label>
+  <div style="margin-top:10px"><button class="btn p" type="submit">Liberar no firewall</button></div></form>
+  <div style="margin-top:14px">{{ syslog_box(syslog, True) }}</div></div></div></div>
+{% elif tab == 'destinos' %}
+<div class="card"><div class="hd"><h3>Destinos de saída</h3><span class="sp"></span><a class="btn p sm" href="{{ url_for('admin.destination_new', tenant_id=t.id) }}">+ Novo destino</a></div>
+<div class="tw"><table class="t"><tr><th>Destino</th><th>Tipo</th><th>Formato</th><th>Situação</th><th>Enviados</th></tr>
+{% for d in dests %}<tr class="{{ 'muted-row' if not d.active }}"><td><a href="{{ url_for('admin.destination', did=d.id) }}"><b>{{ d.name }}</b></a></td><td class="sm">{{ d.kind }}</td><td class="sm">{{ d.format }}</td><td>{{ st_badge(d.status) }}</td><td>{{ d.sent_total|num }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty-state">Nenhum destino.</td></tr>{% endfor %}</table></div></div>
+{% elif tab == 'pessoas' %}
+<div class="grid g2"><div class="card"><div class="hd"><h3>Pessoas com acesso</h3></div>
+<div class="tw"><table class="t"><tr><th>Pessoa</th><th>Perfil</th><th>Situação</th><th></th></tr>
+{% for u in users %}<tr><td><b>{{ u.name }}</b><div class="sm muted">{{ u.email }}</div></td><td>{{ {'manager':'Gestor','reader':'Leitor'}[u.role] }}</td><td><span class="st {{ 'ok' if u.status == 'active' else 'warn' }}">{{ {'active':'ativo','invited':'convidado','suspended':'suspenso'}[u.status] }}</span></td>
+<td class="nowrap"><form method="post" action="{{ url_for('admin.tenant_person', tid=t.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="email" value="{{ u.email }}">{% if u.status == 'invited' %}<button class="link-btn" name="action" value="resend">reenviar convite</button> · {% endif %}<button class="link-btn danger" name="action" value="remove" data-confirm-btn="Remover {{ u.email }}?">remover</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="empty-state">Ninguém deste tenant tem acesso ainda.</td></tr>{% endfor %}</table></div></div>
+<div class="card"><div class="hd"><h3>Convidar pessoa</h3></div><div class="bd"><form method="post" action="{{ url_for('admin.tenant_person', tid=t.id) }}">{{ csrf() }}<input type="hidden" name="action" value="add">
+<div class="fg"><label class="f">Nome</label><input class="i" name="name" maxlength="160"></div><div class="fg"><label class="f">E-mail *</label><input class="i" name="email" type="email" required></div>
+<div class="fg"><label class="f">Perfil</label><select class="i" name="role"><option value="reader">Leitor — vê eventos, destinos e baixa arquivos</option><option value="manager">Gestor — também libera IPs, envia arquivos e convida pessoas</option></select></div>
+<button class="btn p" type="submit">Enviar convite (24 h)</button></form></div></div></div>
+{% endif %}
+<dialog id="dlg-edit"><form method="post" action="{{ url_for('admin.tenant_update', tid=t.id) }}">{{ csrf() }}<input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="internal_present" value="1">
+  <div class="hd"><h3>Editar tenant</h3><button class="x" type="button" data-close-dialog aria-label="Fechar">×</button></div>
+  <div class="bd"><div class="fg"><label class="f">Nome</label><input class="i" name="name" value="{{ t.name }}" required maxlength="160"></div>
+  <div class="fg"><label class="f">Segmento</label><input class="i" name="segment" value="{{ t.segment }}" maxlength="60"></div>
+  <label class="row" style="gap:8px"><input type="checkbox" name="internal" value="1" {{ 'checked' if t.internal }}> Tenant interno da Trust</label></div>
+  <div class="ft"><button class="btn o" type="button" data-close-dialog>Cancelar</button><button class="btn p" type="submit">Salvar</button></div>
+</form></dialog>
+{% endblock %}

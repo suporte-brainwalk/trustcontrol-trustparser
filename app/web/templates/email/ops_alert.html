@@ -1,0 +1,11 @@
+{% extends "email/_frame.html" %}
+{% block body %}
+<tr><td style="padding:20px;">
+<h2 style="margin:0 0 12px;font-size:18px;color:#1d2433">{{ title }}</h2>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:14px">
+{% for k, v in lines %}<tr><td style="padding:6px 8px;color:#5b6475;width:170px;border-bottom:1px solid #eef0f4">{{ k }}</td><td style="padding:6px 8px;border-bottom:1px solid #eef0f4;word-break:break-word">{{ v }}</td></tr>{% endfor %}
+</table>
+<p style="margin:16px 0;font-size:14px;color:#1d2433">{{ action }}</p>
+<p style="margin:16px 0"><a href="{{ base_url }}{{ link }}" style="background:#9dcd17;color:#10140c;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:700">Abrir no Trust Parser</a></p>
+</td></tr>
+{% endblock %}

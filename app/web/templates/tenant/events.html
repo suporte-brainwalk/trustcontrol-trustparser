@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_tp.html" import ev_status %}
+{% block title %}Eventos{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Eventos (últimas 2 horas){% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px"><div class="bd"><form class="row" method="get">
+  <select class="i" name="source_id" style="max-width:260px"><option value="">Todas as fontes</option>{% for s in sources %}<option value="{{ s.id }}" {{ 'selected' if filt.source_id == s.id }}>{{ s.name }}</option>{% endfor %}</select>
+  <select class="i" name="status" style="max-width:180px"><option value="">Todas</option><option value="parsed" {{ 'selected' if filt.status == 'parsed' }}>Reconhecidas</option><option value="unparsed" {{ 'selected' if filt.status == 'unparsed' }}>Não reconhecidas</option></select>
+  <input class="i" name="q" value="{{ filt.q or '' }}" placeholder="contém…" style="max-width:200px"><button class="btn o">Filtrar</button></form>
+  <form class="row" method="get" action="{{ url_for('tenant.events_download') }}" style="margin-top:10px">{% for k, v in filt.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <span class="sm muted">Baixar como</span><select class="i" name="fmt" style="max-width:300px">{% for slug, name in outputs %}<option value="{{ slug }}">{{ name }}</option>{% endfor %}</select><button class="btn o">Baixar .txt</button></form></div></div>
+<div class="card"><div class="tw"><table class="t"><tr><th>Recebido</th><th>Situação</th><th>Linha / evento</th></tr>
+{% for e in rows %}<tr><td class="sm nowrap">{{ e.received_at|dt('%d/%m %H:%M:%S') }}</td><td>{{ ev_status(e) }}</td><td><details class="ev"><summary><span class="mono sm trunc">{{ e.raw }}</span></summary>{% if e.event %}<pre class="code">{{ e.event|tojson_pretty }}</pre>{% else %}<div class="sm">{{ e.error }}</div>{% endif %}</details></td></tr>
+{% else %}<tr><td colspan="3" class="empty-state">Nada no buffer.</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "auth/_layout.html" %}
+{% block box %}
+{% if sent %}
+  <h2>Verifique seu e-mail</h2>
+  <div class="sent">Se <b>{{ email }}</b> tiver acesso ao portal, enviamos um link de entrada.<br><br>
+  Abra a mensagem “Seu acesso ao Trust Parser” e clique em <b>Entrar</b>. O link vale por {{ minutes }} minutos e só funciona uma vez.</div>
+  <div class="note"><a href="{{ url_for('auth.login') }}">Usar outro e-mail</a></div>
+{% else %}
+  <h2>Entrar no portal</h2>
+  <div class="sub">Sem senha. Informe seu e-mail corporativo e enviaremos um link de acesso válido por {{ minutes }} minutos.</div>
+  {% if expired %}<div class="testmode alert-warn">⏱ <div>Sua sessão expirou por inatividade. Entre novamente.</div></div>{% endif %}
+  <form method="post" action="{{ url_for('auth.login') }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="fg"><label class="f" for="email">E-mail corporativo</label>
+      <input class="i" id="email" name="email" type="email" autocomplete="email" required maxlength="254" value="{{ email or '' }}"></div>
+    <button class="btn p block" type="submit">Enviar link de acesso</button>
+  </form>
+  <div class="note">O acesso é somente por convite. Se o e-mail não estiver cadastrado, nenhuma mensagem é enviada.</div>
+{% endif %}
+{% endblock %}

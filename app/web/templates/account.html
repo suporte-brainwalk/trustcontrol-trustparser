@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Minha conta{% endblock %}{% block crumb %}Conta{% endblock %}{% block heading %}Minha conta{% endblock %}
+{% block content %}
+<div class="grid g2">
+  <div class="card"><div class="hd"><h3>Dados</h3></div><div class="bd"><div class="kv">
+    <div>Nome</div><div>{{ user.name }}</div><div>E-mail</div><div>{{ user.email }}</div>
+    <div>Perfil</div><div>{{ {'admin':'Administrador','manager':'Gestor do tenant','reader':'Leitor'}[user.role] }}{% if user.tenant %} · {{ user.tenant.name }}{% endif %}</div>
+    <div>Último acesso</div><div>{{ user.last_login_at|dt }}</div></div></div></div>
+  <div class="card"><div class="hd"><h3>Verificação em duas etapas (TOTP)</h3><span class="sp"></span>{% if user.totp_enabled %}<span class="st ok">ativa</span>{% else %}<span class="st">inativa</span>{% endif %}</div><div class="bd">
+    {% if not user.totp_enabled %}
+      <p class="sm muted" style="margin-top:0">Proteja sua conta com um código do aplicativo autenticador além do link por e-mail.</p>
+      <a class="btn p" href="{{ url_for('auth.mfa_setup') }}">Ativar verificação em duas etapas</a>
+    {% else %}
+      <p class="sm muted" style="margin-top:0">Códigos de recuperação restantes: <b>{{ user.recovery_codes|length }}</b>.</p>
+      <form method="post" class="formgrid" autocomplete="off">{{ csrf() }}
+        <div class="fg"><label class="f">Código atual do aplicativo</label><input class="i" name="code" inputmode="numeric" maxlength="6" required></div>
+        <div class="row"><button class="btn o" name="action" value="regen_codes" type="submit">Gerar novos códigos</button>
+        {% if not mfa_required %}<button class="btn o danger" name="action" value="disable_mfa" type="submit">Desativar</button>{% endif %}</div>
+      </form>
+      {% if mfa_required %}<div class="note">A Trust Control exige a verificação em duas etapas para administradores.</div>{% endif %}
+    {% endif %}
+  </div></div>
+</div>
+{% endblock %}

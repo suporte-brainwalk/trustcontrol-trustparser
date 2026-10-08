@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_tp.html" import spark, st_badge, syslog_box %}
+{% block title %}Painel{% endblock %}{% block crumb %}Administração · Trust Control{% endblock %}{% block heading %}Painel{% endblock %}
+{% block content %}
+{% if worker and worker.at is defined %}{% else %}<div class="testmode alert-warn">⏳ <div>O processamento (worker) ainda não deu sinal de vida.</div></div>{% endif %}
+{% if fw and not fw.in_sync %}<div class="testmode alert-warn">🛡 <div>O firewall do syslog ainda não aplicou a última alteração de IPs. <a href="{{ url_for('admin.firewall') }}">Ver firewall →</a></div></div>{% endif %}
+<div class="grid g4">
+  <div class="card kpi accent"><div class="l">Eventos por segundo (5 min)</div><div class="v">{{ eps }}</div><div class="s">{{ k.last60|num }} na última hora</div></div>
+  <div class="card kpi blue"><div class="l">Reconhecidos (1 h)</div><div class="v">{{ parsed_pct if parsed_pct is not none else '—' }}{% if parsed_pct is not none %}%{% endif %}</div><div class="s">{{ k.parsed60|num }} parseados · {{ k.unparsed60|num }} não reconhecidos</div></div>
+  <div class="card kpi red"><div class="l">Não reconhecidos (buffer)</div><div class="v">{{ k.unparsed_all|num }}</div><div class="s"><a href="{{ url_for('admin.unparsed') }}">analisar / pedir ajuste →</a></div></div>
+  <div class="card kpi purple"><div class="l">Entregas pendentes</div><div class="v">{{ pending|num }}</div><div class="s">{{ k.queued|num }} na fila de parsing · {{ k.total|num }} no buffer</div></div>
+</div>
+<div class="grid g2" style="margin-top:16px">
+  <div class="card"><div class="hd"><h3>Entrada (últimos 60 min)</h3><span class="sp"></span><a class="sm" href="{{ url_for('admin.events') }}">ver eventos →</a></div><div class="bd">{{ spark(series) }}
+    <div class="sm muted" style="margin-top:10px">Receptor syslog: {% if ingest.at %}<span class="st ok">no ar</span> · {{ ingest.connections or 0 }} conexão(ões) · {{ (ingest.written or 0)|num }} linhas gravadas desde o início{% else %}<span class="st warn">sem sinal</span>{% endif %}</div></div></div>
+  <div class="card"><div class="hd"><h3>Destinos de saída</h3><span class="sp"></span><a class="sm" href="{{ url_for('admin.destinations') }}">todos →</a></div>
+    <div class="tw"><table class="t"><tr><th>Destino</th><th>Tenant</th><th>Situação</th><th>Enviados</th></tr>
+    {% for d in dests[:8] %}<tr><td><a href="{{ url_for('admin.destination', did=d.id) }}"><b>{{ d.name }}</b></a><div class="sm muted">{{ d.kind }} · {{ d.format }}</div></td><td class="sm">{{ d.tenant.name }}</td><td>{{ st_badge(d.status) }}{% if d.last_error and d.status == 'err' %}<div class="sm muted trunc">{{ d.last_error }}</div>{% endif %}</td><td>{{ d.sent_total|num }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty-state">Nenhum destino cadastrado.</td></tr>{% endfor %}</table></div></div>
+</div>
+<div class="grid g2" style="margin-top:16px">
+  <div class="card"><div class="hd"><h3>Fontes mais recentes</h3><span class="sp"></span><a class="sm" href="{{ url_for('admin.sources') }}">todas →</a></div>
+    <div class="tw"><table class="t"><tr><th>Fonte</th><th>Último evento</th><th>Total</th><th>Não rec.</th></tr>
+    {% for s in srcs %}<tr><td><a href="{{ url_for('admin.source', sid=s.id) }}"><b>{{ s.name }}</b></a><div class="sm muted">{{ s.tenant.name }} · {{ s.transport }}</div></td><td class="sm nowrap">{{ s.last_event_at|dt }}</td><td>{{ s.events_total|num }}</td><td>{{ s.unparsed_total|num }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty-state">Nenhuma fonte ainda. Cadastre em “Fontes de entrada”.</td></tr>{% endfor %}</table></div></div>
+  <div class="card"><div class="hd"><h3>Endereço para configurar os equipamentos</h3></div><div class="bd">{{ syslog_box(syslog) }}</div></div>
+</div>
+{% endblock %}

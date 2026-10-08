@@ -1,0 +1,73 @@
+{% from "_macros.html" import theme_toggle, flashes %}<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Trust Parser{% endblock %} · Trust Parser</title>
+<link rel="icon" href="{{ url_for('static', filename='brand/favicon.png') }}">
+<script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=13">
+</head>
+<body>
+{% block body %}
+{% set is_admin = current_user.role == 'admin' %}
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand"><span class="logo"><img src="{{ url_for('static', filename='brand/trust-logo.png') }}" alt="Trust Control" width="104" height="20"></span></div>
+    <div class="side-sub">Trust Parser · logs e eventos</div>
+    {% if is_admin %}
+      <div class="grp">Operação</div>
+      <a class="nav {{ 'on' if nav == 'dash' }}" href="{{ url_for('admin.dashboard') }}"><span class="ic">▦</span>Painel</a>
+      <a class="nav {{ 'on' if nav == 'events' }}" href="{{ url_for('admin.events') }}"><span class="ic">≡</span>Eventos (buffer)</a>
+      <a class="nav {{ 'on' if nav == 'unparsed' }}" href="{{ url_for('admin.unparsed') }}"><span class="ic">⚠</span>Não reconhecidos{% if nav_counts and nav_counts.unparsed %}<span class="cnt">{{ nav_counts.unparsed }}</span>{% endif %}</a>
+      <a class="nav {{ 'on' if nav == 'uploads' }}" href="{{ url_for('admin.uploads') }}"><span class="ic">⇪</span>Upload e download</a>
+      <div class="grp">Cadastros</div>
+      <a class="nav {{ 'on' if nav == 'tenants' }}" href="{{ url_for('admin.tenants') }}"><span class="ic">🏢</span>Tenants</a>
+      <a class="nav {{ 'on' if nav == 'sources' }}" href="{{ url_for('admin.sources') }}"><span class="ic">📥</span>Fontes de entrada</a>
+      <a class="nav {{ 'on' if nav == 'firewall' }}" href="{{ url_for('admin.firewall') }}"><span class="ic">🛡</span>Firewall do syslog</a>
+      <a class="nav {{ 'on' if nav == 'dests' }}" href="{{ url_for('admin.destinations') }}"><span class="ic">📤</span>Destinos de saída{% if nav_counts and nav_counts.dest_err %}<span class="cnt">{{ nav_counts.dest_err }}</span>{% endif %}</a>
+      <div class="grp">Parsing</div>
+      <a class="nav {{ 'on' if nav == 'parsers' }}" href="{{ url_for('admin.parsers') }}"><span class="ic">⚙</span>Parsers e formatos</a>
+      <a class="nav {{ 'on' if nav == 'studio' }}" href="{{ url_for('admin.studio') }}"><span class="ic">✨</span>Estúdio IA{% if nav_counts and nav_counts.studio %}<span class="cnt">{{ nav_counts.studio }}</span>{% endif %}</a>
+      <div class="grp">Sistema</div>
+      {% if has_endpoint('eva.page') %}<a class="nav {{ 'on' if nav == 'eva' }}" href="{{ url_for('eva.page') }}"><span class="ic">🤖</span>EVA</a>{% endif %}
+      <a class="nav {{ 'on' if nav == 'api' }}" href="{{ url_for('admin.api_keys_page') }}"><span class="ic">🔑</span>API</a>
+      <a class="nav {{ 'on' if nav == 'audit' }}" href="{{ url_for('admin.audit_view') }}"><span class="ic">🧾</span>Auditoria</a>
+      <a class="nav {{ 'on' if nav == 'config' }}" href="{{ url_for('admin.config') }}"><span class="ic">⚙</span>Configurações</a>
+      <a class="nav {{ 'on' if nav == 'help' }}" href="{{ url_for('admin.help') }}"><span class="ic">❓</span>Ajuda</a>
+    {% else %}
+      <div class="grp">{{ current_user.tenant.name }}</div>
+      <a class="nav {{ 'on' if nav == 'tdash' }}" href="{{ url_for('tenant.dashboard') }}"><span class="ic">▦</span>Visão geral</a>
+      <a class="nav {{ 'on' if nav == 'tsources' }}" href="{{ url_for('tenant.sources') }}"><span class="ic">📥</span>Fontes e IPs liberados</a>
+      <a class="nav {{ 'on' if nav == 'tdests' }}" href="{{ url_for('tenant.destinations') }}"><span class="ic">📤</span>Destinos</a>
+      <a class="nav {{ 'on' if nav == 'tuploads' }}" href="{{ url_for('tenant.uploads') }}"><span class="ic">⇪</span>Upload e download</a>
+      <a class="nav {{ 'on' if nav == 'tevents' }}" href="{{ url_for('tenant.events') }}"><span class="ic">≡</span>Eventos</a>
+      <a class="nav {{ 'on' if nav == 'tteam' }}" href="{{ url_for('tenant.team') }}"><span class="ic">👥</span>Pessoas</a>
+    {% endif %}
+    <div class="grp">Conta</div>
+    <a class="nav {{ 'on' if nav == 'account' }}" href="{{ url_for('auth.account') }}"><span class="ic">🔐</span>Minha conta</a>
+    <div class="me"><b>{{ current_user.email }}</b>{{ {'admin':'Administrador · Trust Control','manager':'Gestor do tenant','reader':'Leitor'}[current_user.role] }}
+      <form method="post" action="{{ url_for('auth.logout') }}" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="link-btn">Sair</button></form>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <button type="button" class="menu-t" data-menu-toggle aria-label="Abrir menu">☰</button>
+      <div><div class="crumb">{% block crumb %}{% endblock %}</div><h1>{% block heading %}{% endblock %}</h1></div>
+      <span class="sp"></span>
+      {% block actions %}{% endblock %}
+      {{ theme_toggle() }}
+    </div>
+    <div class="content">
+      {% if test_mode_banner %}<div class="testmode">🧪 <div><b>Modo de teste ativo.</b> E-mails para destinatários fora da lista de testes são redirecionados para a caixa de testes.{% if is_admin %} <a href="{{ url_for('admin.settings') }}">Alterar</a>{% endif %}</div></div>{% endif %}
+      {{ flashes() }}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}
+<script src="{{ url_for('static', filename='js/app.js') }}?v=6"></script>
+</body>
+</html>

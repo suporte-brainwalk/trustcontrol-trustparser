@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import syslog_box %}
+{% block title %}Firewall do syslog{% endblock %}{% block crumb %}Cadastros{% endblock %}{% block heading %}Firewall do syslog{% endblock %}
+{% block content %}
+<div class="testmode {{ '' if fw.in_sync else 'alert-warn' }}">🛡 <div>{% if fw.in_sync %}<b>Firewall em dia.</b> Última aplicação {{ fw.applied.at[:19]|replace('T', ' ') }} UTC.{% elif fw.applied.at %}<b>Aplicando alterações…</b> o firewall do servidor sincroniza a cada 30 segundos (última aplicação {{ fw.applied.at[:19]|replace('T', ' ') }} UTC{% if not fw.applied.ok %} — erro: {{ fw.applied.message }}{% endif %}).{% else %}<b>Firewall ainda não sincronizado</b> pelo serviço do servidor.{% endif %}
+  Liberados agora: TLS {{ fw.desired.tls|length }} · TCP {{ fw.desired.tcp|length }} · UDP {{ fw.desired.udp|length }} faixa(s). Todo o resto é bloqueado antes de chegar ao Trust Parser.</div></div>
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>IPs liberados</h3></div><div class="tw"><table class="t"><tr><th>IP / faixa</th><th>Tenant · fonte</th><th>Protocolos</th><th>Descrição</th><th></th></tr>
+{% for a in rows %}<tr class="{{ 'muted-row' if not a.active }}"><td class="mono">{{ a.cidr }}</td><td class="sm"><a href="{{ url_for('admin.tenant', tid=a.tenant_id, tab='ips') }}">{{ a.tenant.name }}</a><div class="muted">{{ a.source.name if a.source else 'qualquer fonte' }}</div></td>
+<td>{% for p in a.protocols %}<span class="tag">{{ p|upper }}</span>{% endfor %}</td><td class="sm">{{ a.description }}<div class="muted">{{ a.created_by }} · {{ a.created_at|d }}</div></td>
+<td class="nowrap"><form method="post" action="{{ url_for('admin.firewall_action', aid=a.id) }}" class="inline-form">{{ csrf() }}<button class="link-btn" name="action" value="toggle">{{ 'desativar' if a.active else 'ativar' }}</button> · <button class="link-btn danger" name="action" value="delete" data-confirm-btn="Remover {{ a.cidr }}?">remover</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty-state">Nenhum IP liberado: nenhum equipamento consegue enviar syslog.</td></tr>{% endfor %}</table></div></div>
+<div class="grid" style="align-content:start">
+<div class="card"><div class="hd"><h3>Liberar IP</h3></div><div class="bd"><form method="post" action="{{ url_for('admin.firewall_new') }}">{{ csrf() }}
+  <div class="fg"><label class="f">Tenant *</label><select class="i" name="tenant_id" required>{% for t in tenants %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">IP ou faixa (IPv4) *</label><input class="i mono" name="cidr" required placeholder="200.100.50.10 ou 200.100.50.0/28"></div>
+  <div class="fg"><label class="f">Protocolos</label><div class="row">{% for p, l in protocols.items() %}<label class="row" style="gap:6px"><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p == 'tls' }}> {{ l }}</label>{% endfor %}</div></div>
+  <div class="fg"><label class="f">Fonte (opcional)</label><select class="i" name="source_id"><option value="">Qualquer fonte do tenant</option>{% for s in all_sources if s.transport == 'syslog' %}<option value="{{ s.id }}">{{ s.tenant.name }} · {{ s.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">Descrição</label><input class="i" name="description" maxlength="200"></div>
+  <label class="row sm" style="gap:6px"><input type="checkbox" name="allow_wide" value="1"> confirmo liberar faixa maior que /16</label>
+  <div style="margin-top:10px"><button class="btn p" type="submit">Liberar</button></div></form></div></div>
+<div class="card"><div class="hd"><h3>Endereço de destino para os equipamentos</h3></div><div class="bd">{{ syslog_box(syslog) }}</div></div>
+{% if ingest.rejected_recent %}<div class="card"><div class="hd"><h3>Conexões recusadas recentemente</h3></div><div class="tw"><table class="t">{% for ip, info in ingest.rejected_recent.items() %}<tr><td class="mono">{{ ip }}</td><td class="sm">{{ info.proto|upper }}</td><td class="sm">{{ info.at[:19]|replace('T',' ') }} UTC</td></tr>{% endfor %}</table></div></div>{% endif %}
+</div></div>
+{% endblock %}

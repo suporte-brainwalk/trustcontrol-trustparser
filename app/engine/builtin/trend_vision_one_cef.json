@@ -1,0 +1,605 @@
+{
+ "slug": "trend-vision-one-cef",
+ "name": "Trend Vision One · Syslog Connector (CEF)",
+ "vendor": "Trend Micro (TrendAI)",
+ "product": "Vision One",
+ "description": "Logs do Syslog Connector (SaaS ou on-premises via Service Gateway) do Trend Vision One / TrendAI Vision One em CEF: 900001 alertas do Workbench e 900002 Observed Attack Techniques (OAT) viram Detection Finding; 900003 auditoria de conta vira Authentication no login/logout e Base Event no resto; 900004 auditoria de sistema vira Base Event. Aceita fabricante 'TrendAI™'/'Trend Micro' e produto 'TrendAI Vision One™'/'Vision One', com ou sem cabeçalho syslog; o JSON do campo msg da auditoria é lido quando vem inteiro. Feito pela documentação (tabelas de mapeamento CEF; não há linha real publicada) — validar com amostra real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "re": "CEF:\\d\\|(?:TrendAI™?|Trend Micro)\\|(?:TrendAI |Trend Micro )?Vision One"
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "cef",
+   "from": "$raw",
+   "to": "c"
+  },
+  {
+   "op": "set",
+   "to": "ts",
+   "value": {
+    "path": "c.ext.rt",
+    "type": "strptime:%b %d %Y %H:%M:%S"
+   },
+   "when": {
+    "path": "c.ext.rt",
+    "re": "^[A-Z][a-z]{2} \\d{1,2} \\d{4} "
+   }
+  },
+  {
+   "op": "set",
+   "to": "ts",
+   "value": {
+    "path": "c.ext.rt",
+    "type": "time"
+   },
+   "when": {
+    "path": "c.ext.rt",
+    "re": "^(?:\\d{4}-\\d{2}-\\d{2}T|\\d{10,13}$)"
+   }
+  },
+  {
+   "op": "json",
+   "from": "c.ext.msg",
+   "to": "mj",
+   "optional": true,
+   "when": {
+    "path": "c.ext.msg",
+    "re": "^\\s*\\{"
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    "ts",
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "Trend Micro"
+  },
+  "metadata.product.name": {
+   "const": "Vision One"
+  },
+  "metadata.product.version": "c.device_version",
+  "metadata.event_code": "c.signature_id",
+  "metadata.event_subtype": "c.name",
+  "metadata.uid": "c.ext.externalId",
+  "metadata.tenant_uid": "c.ext.TrendMicroV1CompanyID",
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "category_uid": {
+   "const": 0
+  },
+  "category_name": {
+   "const": "Uncategorized"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "activity_name": {
+   "const": "Other"
+  },
+  "severity_id": {
+   "lookup": "c.severity",
+   "table": {
+    "1": 0,
+    "2": 1,
+    "3": 2,
+    "4": 2,
+    "5": 3,
+    "6": 3,
+    "7": 4,
+    "8": 4,
+    "9": 5,
+    "10": 5
+   },
+   "default": 0
+  },
+  "message": {
+   "first": [
+    {
+     "template": "{c.ext.cat}: {c.ext.msg}",
+     "strict": true
+    },
+    "c.ext.cat",
+    "c.name"
+   ]
+  }
+ },
+ "cases": [
+  {
+   "name": "workbench",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "900001"
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "finding_info.uid": "c.ext.externalId",
+    "finding_info.title": "c.ext.cat",
+    "finding_info.desc": "c.ext.msg",
+    "finding_info.src_url": "c.ext.Workbench link",
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Workbench Alert"
+      }
+     ]
+    },
+    "finding_info.src": "c.ext.sourceServiceName",
+    "unmapped.impact_scope_count": {
+     "path": "c.ext.Impact Scope Count",
+     "type": "int"
+    }
+   }
+  },
+  {
+   "name": "tecnica-de-ataque-observada",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "900002"
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "finding_info.uid": "c.ext.externalId",
+    "finding_info.title": "c.ext.cat",
+    "finding_info.desc": "c.ext.msg",
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Observed Attack Technique"
+      }
+     ]
+    },
+    "finding_info.tactics": {
+     "path": "c.ext.MITRE Tactic IDs",
+     "type": "split:,"
+    },
+    "finding_info.techniques": {
+     "path": "c.ext.MITRE Technique IDs",
+     "type": "split:,"
+    },
+    "disposition": {
+     "lookup": {
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "not blocked": "Detected",
+      "block": "Blocked",
+      "blocked": "Blocked",
+      "reset": "Blocked"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": {
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "not blocked": 15,
+      "block": 2,
+      "blocked": 2,
+      "reset": 2
+     },
+     "default": 15
+    },
+    "action": {
+     "lookup": {
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "not blocked": "Allowed",
+      "block": "Denied",
+      "blocked": "Denied",
+      "reset": "Denied"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "path": "c.ext.act",
+      "type": "lower"
+     },
+     "table": {
+      "not blocked": 1,
+      "block": 2,
+      "blocked": 2,
+      "reset": 2
+     }
+    },
+    "device.hostname": {
+     "first": [
+      {
+       "path": "c.ext.dvchost",
+       "type": "nil"
+      },
+      {
+       "path": "c.ext.shost",
+       "type": "nil"
+      }
+     ]
+    },
+    "device.uid": "c.ext.deviceExternalId",
+    "src_endpoint.ip": {
+     "path": "c.ext.src",
+     "type": "ip"
+    },
+    "src_endpoint.port": {
+     "path": "c.ext.spt",
+     "type": "int"
+    },
+    "src_endpoint.hostname": {
+     "path": "c.ext.shost",
+     "type": "nil"
+    },
+    "dst_endpoint.ip": {
+     "path": "c.ext.dst",
+     "type": "ip"
+    },
+    "dst_endpoint.port": {
+     "path": "c.ext.dpt",
+     "type": "int"
+    },
+    "dst_endpoint.hostname": {
+     "path": "c.ext.dhost",
+     "type": "nil"
+    },
+    "connection_info.direction": {
+     "lookup": "c.ext.deviceDirection",
+     "table": {
+      "0": "Inbound",
+      "1": "Outbound"
+     }
+    },
+    "connection_info.protocol_name": {
+     "path": "c.ext.app",
+     "type": "lower"
+    },
+    "actor.process.path": "c.ext.deviceProcessName",
+    "actor.process.name": {
+     "path": "c.ext.deviceProcessName",
+     "type": "basename"
+    },
+    "http_request.url.url_string": "c.ext.request",
+    "observer.product": "c.ext.deviceFacility"
+   }
+  },
+  {
+   "name": "auditoria-de-conta-login",
+   "when": {
+    "all": [
+     {
+      "path": "c.signature_id",
+      "eq": "900003"
+     },
+     {
+      "any": [
+       {
+        "path": "c.ext.cat",
+        "re": "(?i)sign in|log ?on|logon|single sign-on"
+       },
+       {
+        "path": "c.ext.Activity",
+        "re": "(?i)sign (in|out)|log ?(on|off)"
+       }
+      ]
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3002
+    },
+    "class_name": {
+     "const": "Authentication"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "lookup": {
+      "path": "c.ext.Activity",
+      "type": "lower"
+     },
+     "table": {
+      "sign out": 2,
+      "log off": 2,
+      "logoff": 2
+     },
+     "default": 1
+    },
+    "activity_name": {
+     "lookup": {
+      "path": "c.ext.Activity",
+      "type": "lower"
+     },
+     "table": {
+      "sign out": "Logoff",
+      "log off": "Logoff",
+      "logoff": "Logoff"
+     },
+     "default": "Logon"
+    },
+    "user.name": "c.ext.Account",
+    "user.email_addr": "mj.Identifier.email",
+    "user.uid": "mj.Identifier.id",
+    "src_endpoint.ip": {
+     "path": "mj.IP address",
+     "type": "ip"
+    },
+    "status": {
+     "lookup": "c.ext.Result",
+     "table": {
+      "1": "Success",
+      "0": "Failure"
+     }
+    },
+    "status_id": {
+     "lookup": "c.ext.Result",
+     "table": {
+      "1": 1,
+      "0": 2
+     }
+    },
+    "severity_id": {
+     "lookup": "c.ext.Result",
+     "table": {
+      "0": 2
+     },
+     "default": 1
+    },
+    "metadata.log_name": {
+     "const": "Account Audit"
+    },
+    "logon_process.name": {
+     "lookup": "c.ext.Source",
+     "table": {
+      "0": "Console",
+      "1": "API",
+      "6": "Service Gateway"
+     }
+    },
+    "message": {
+     "template": "{c.ext.Activity} {c.ext.Account}",
+     "strict": true
+    }
+   }
+  },
+  {
+   "name": "auditoria-de-conta",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "900003"
+   },
+   "map": {
+    "actor.user.name": "c.ext.Account",
+    "status": {
+     "lookup": "c.ext.Result",
+     "table": {
+      "1": "Success",
+      "0": "Failure"
+     }
+    },
+    "metadata.log_name": {
+     "const": "Account Audit"
+    },
+    "message": {
+     "template": "{c.ext.cat}: {c.ext.Activity} ({c.ext.Account})",
+     "strict": true
+    }
+   }
+  },
+  {
+   "name": "auditoria-de-sistema",
+   "when": {
+    "path": "c.signature_id",
+    "eq": "900004"
+   },
+   "map": {
+    "metadata.log_name": {
+     "const": "System Audit"
+    },
+    "time": {
+     "first": [
+      "ts",
+      {
+       "path": "c.ext.Timestamp",
+       "type": "epoch_s"
+      },
+      {
+       "path": "sl.timestamp",
+       "type": "time"
+      }
+     ]
+    },
+    "message": {
+     "template": "{c.ext.cat}: {c.ext.Activity}",
+     "strict": true
+    }
+   }
+  }
+ ],
+ "unmapped": [
+  "c.ext",
+  "mj"
+ ],
+ "unmapped_drop": [
+  "rt",
+  "externalId",
+  "cat",
+  "msg",
+  "TrendMicroV1CompanyID",
+  "Workbench link",
+  "Impact Scope Count",
+  "sourceServiceName",
+  "MITRE Tactic IDs",
+  "MITRE Technique IDs",
+  "act",
+  "dvchost",
+  "shost",
+  "dhost",
+  "deviceExternalId",
+  "src",
+  "spt",
+  "dst",
+  "dpt",
+  "deviceDirection",
+  "app",
+  "deviceProcessName",
+  "request",
+  "deviceFacility",
+  "Account",
+  "Result",
+  "Source",
+  "IP address",
+  "Identifier",
+  "cs1",
+  "cs2",
+  "cs3",
+  "cn1",
+  "cn2",
+  "cs1Label",
+  "cs2Label",
+  "cs3Label",
+  "cn1Label",
+  "cn2Label"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "alerta do Workbench (construído da tabela CEF oficial)",
+   "input": "CEF:0|TrendAI™|TrendAI Vision One™|1.0.0|900001|TrendAI Vision One™ Workbench Alert|7|externalId=WB-9002-20210519-00014 cat=Possible APT Attack cn1=1 cn1Label=Impact Scope Count cs1=https://portal-int.visionone.trendmicro.com/index.html#/workbench?workbenchId\\=WB-9002-20210517-00001&ref\\=0c12e642ca5b7ed4436e5f23f568ae10066608d3 cs1Label=Workbench link msg=A user bypassed higher-level permissions. rt=Dec 05 2022 05:26:45 sourceServiceName=SAE TrendMicroV1CompanyID=68960c94-9be6-4343-a4ca-6408de7aa331",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2022-12-05T05:26:45.000Z",
+    "class_uid": 2004,
+    "severity_id": 4,
+    "finding_info.uid": "WB-9002-20210519-00014",
+    "finding_info.title": "Possible APT Attack",
+    "finding_info.desc": "A user bypassed higher-level permissions.",
+    "finding_info.src_url": "https://portal-int.visionone.trendmicro.com/index.html#/workbench?workbenchId=WB-9002-20210517-00001&ref=0c12e642ca5b7ed4436e5f23f568ae10066608d3",
+    "metadata.tenant_uid": "68960c94-9be6-4343-a4ca-6408de7aa331",
+    "unmapped.impact_scope_count": 1
+   }
+  },
+  {
+   "name": "técnica de ataque observada (OAT, construído da tabela CEF oficial)",
+   "input": "<134>2026-10-08T12:00:00Z sg01 CEF:0|TrendAI™|TrendAI Vision One™|1.0.0|900002|TrendAI Vision One™ Observed Attack Techniques|3|act=Not blocked app=HTTP cat=Connection to Commonly Used Ports cs1=TA0002, TA0006 cs1Label=MITRE Tactic IDs cs2=T1003.001, T1059.001 cs2Label=MITRE Technique IDs deviceDirection=1 deviceExternalId=B0DA10B4-EA5A-44EA-8D78-41FE6CD1C3E2 deviceFacility=Apex One dvchost=ip-10-209-120-47.ap-northeast-1.compute.internal src=8.8.8.8 spt=544 dst=239.255.255.250 dpt=8080 externalId=100116 msg=Detects the connection to commonly used ports request=http://35.247.144.219/ rt=Dec 05 2022 05:26:45 TrendMicroV1CompanyID=68960c94-9be6-4343-a4ca-6408de7aa331",
+   "expect": {
+    "time": "2022-12-05T05:26:45.000Z",
+    "class_uid": 2004,
+    "severity_id": 2,
+    "disposition": "Detected",
+    "finding_info.tactics": [
+     "TA0002",
+     "TA0006"
+    ],
+    "finding_info.techniques": [
+     "T1003.001",
+     "T1059.001"
+    ],
+    "device.hostname": "ip-10-209-120-47.ap-northeast-1.compute.internal",
+    "src_endpoint.ip": "8.8.8.8",
+    "dst_endpoint.port": 8080,
+    "connection_info.direction": "Outbound",
+    "observer.product": "Apex One",
+    "http_request.url.url_string": "http://35.247.144.219/"
+   }
+  },
+  {
+   "name": "auditoria de conta: login (construído da tabela CEF oficial)",
+   "input": "CEF:0|TrendAI™|TrendAI Vision One™|1.0.0|900003|TrendAI Vision One™ Account Audit Log|2|cat=Sign in and sign out cs1=Root account cs1Label=Account cs2=Master Administrator cs2Label=Role cs3=Sign in cs3Label=Activity cn1=1 cn1Label=Result cn2=0 cn2Label=Source msg={\"IP address\": \"10.1.1.1\", \"Identifier\": {\"id\":\"0e9b00aa-6ee4-4f83-9e42-dd83e19a5e60\",\"type\":\"managedAccount\",\"name\":\"Root Account\",\"email\":\"admin@example.com\",\"subType\":\"local\"}} rt=2024-09-23T17:18:42Z TrendMicroV1CompanyID=68960c94-9be6-4343-a4ca-6408de7aa331",
+   "expect": {
+    "time": "2024-09-23T17:18:42.000Z",
+    "class_uid": 3002,
+    "activity_id": 1,
+    "status": "Success",
+    "user.name": "Root account",
+    "user.email_addr": "admin@example.com",
+    "src_endpoint.ip": "10.1.1.1",
+    "logon_process.name": "Console",
+    "unmapped.Role": "Master Administrator"
+   }
+  },
+  {
+   "name": "Workbench com marca antiga 'Trend Micro|Vision One' e cabeçalho syslog (sintético)",
+   "input": "<132>Oct  8 12:10:00 sg01 CEF:0|Trend Micro|Vision One|1.0.0|900001|Vision One Workbench Alert|9|externalId=WB-9002-20261008-00003 cat=Ransomware Behavior Detected cn1=3 cn1Label=Impact Scope Count msg=Ransomware behavior was detected on multiple endpoints. rt=2026-10-08T12:09:30Z sourceServiceName=SAE",
+   "udm_generic_ok": true,
+   "expect": {
+    "time": "2026-10-08T12:09:30.000Z",
+    "class_uid": 2004,
+    "severity_id": 5,
+    "finding_info.title": "Ransomware Behavior Detected"
+   }
+  },
+  {
+   "name": "auditoria de sistema (sintético da tabela CEF)",
+   "input": "CEF:0|TrendAI™|TrendAI Vision One™|1.0.0|900004|TrendAI Vision One™ System Audit Log|2|cat=Reports cs1=Generate report cs1Label=Activity cn1=1791460800 cn1Label=Timestamp msg={\"Report name\": \"Executive summary\"} rt=2026-10-08T12:00:00Z TrendMicroV1CompanyID=68960c94-9be6-4343-a4ca-6408de7aa331",
+   "expect": {
+    "time": "2026-10-08T12:00:00.000Z",
+    "class_uid": 0,
+    "metadata.log_name": "System Audit",
+    "message": "Reports: Generate report",
+    "unmapped.Report name": "Executive summary"
+   }
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+{% macro connector_fields(connectors, current=None, cfg={}) -%}
+{% for slug, c in connectors.items() %}
+<div class="fieldset" data-show-if="connector={{ slug }}"><div class="sm muted" style="margin-bottom:8px"><b>{{ c.name }}</b> · coleta pela API do fabricante (parser: <span class="mono">{{ c.parser_slug }}</span>)</div>
+  <div class="formgrid">{% for f in c.fields %}<div class="fg"><label class="f">{{ f.label }}{{ ' *' if f.required }}</label>
+    {% if f.kind == 'select' %}<select class="i" name="c_{{ slug }}__{{ f.name }}">{% for v, l in f.options or [] %}<option value="{{ v }}" {{ 'selected' if (cfg.get(f.name) if current == slug else f.default) == v }}>{{ l }}</option>{% endfor %}</select>
+    {% else %}<input class="i" name="c_{{ slug }}__{{ f.name }}" value="{{ cfg.get(f.name, '') if current == slug else (f.default or '') }}" {{ 'data-req' if f.required }}>{% endif %}
+    {% if f.help %}<div class="sm muted">{{ f.help }}</div>{% endif %}</div>{% endfor %}</div>
+  {% if c.secret_fields %}<div class="formgrid">{% for f in c.secret_fields %}<div class="fg"><label class="f">🔒 {{ f.label }}{{ ' *' if f.required and current != slug }}</label>
+    <input class="i" type="password" autocomplete="new-password" name="s_{{ slug }}__{{ f.name }}" placeholder="{{ 'cadastrado — deixe vazio para manter' if current == slug else '' }}">
+    {% if f.help %}<div class="sm muted">{{ f.help }}</div>{% endif %}</div>{% endfor %}</div>{% endif %}
+</div>
+{% endfor %}
+{%- endmacro %}

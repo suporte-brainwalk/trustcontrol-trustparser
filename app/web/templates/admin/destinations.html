@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% from "_tp.html" import st_badge %}
+{% block title %}Destinos de saída{% endblock %}{% block crumb %}Cadastros{% endblock %}{% block heading %}Destinos de saída{% endblock %}
+{% block actions %}<a class="btn p" href="{{ url_for('admin.destination_new') }}">+ Novo destino</a>{% endblock %}
+{% block content %}
+<div class="card"><div class="tw"><table class="t">
+<tr><th>Destino</th><th>Tenant</th><th>Tipo</th><th>Formato</th><th>Situação</th><th>Enviados</th><th>Pendentes</th><th>Último envio ok</th></tr>
+{% for d in rows %}<tr class="{{ 'muted-row' if not d.active }}"><td><a href="{{ url_for('admin.destination', did=d.id) }}"><b>{{ d.name }}</b></a></td><td class="sm">{{ d.tenant.name }}</td>
+<td class="sm">{{ kinds[d.kind].name if d.kind in kinds else d.kind }}</td><td class="sm mono">{{ d.format }}</td><td>{{ st_badge(d.status) if d.active else '<span class="st warn">pausado</span>'|safe }}{% if d.status == 'err' %}<div class="sm muted trunc" style="max-width:280px">{{ d.last_error }}</div>{% endif %}</td>
+<td>{{ d.sent_total|num }}</td><td>{{ (pending.get(d.id) or 0)|num }}</td><td class="sm">{{ d.last_ok_at|dt }}</td></tr>
+{% else %}<tr><td colspan="8" class="empty-state">Nenhum destino. Os eventos ficam disponíveis para download até cadastrar um destino.</td></tr>{% endfor %}
+</table></div></div>
+{% endblock %}

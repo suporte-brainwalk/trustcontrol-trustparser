@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Auditoria{% endblock %}{% block crumb %}Sistema{% endblock %}{% block heading %}Auditoria{% endblock %}
+{% block content %}
+<form method="get" class="filters"><input name="q" value="{{ term }}" placeholder="Buscar por usuário, ação ou alvo" style="min-width:280px" aria-label="Buscar"><button class="btn o sm" type="submit">Buscar</button></form>
+<div class="card"><div class="tw"><table class="t"><tr><th>Data/hora</th><th>Usuário</th><th>Tenant</th><th>Ação</th><th>Alvo</th><th>IP</th></tr>
+{% for a in rows %}<tr><td class="sm nowrap">{{ a.at|dt('%d/%m/%Y %H:%M:%S') }}</td><td class="sm">{{ a.actor_label }}</td><td class="sm">{{ tenants.get(a.tenant_id, '—') }}</td><td><span class="tag">{{ a.action }}</span></td><td class="sm muted" style="max-width:360px;overflow-wrap:anywhere">{{ a.target }}</td><td class="sm muted">{{ a.ip }}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Nenhum registro.</td></tr>{% endfor %}</table></div>
+<div class="bd note" style="margin:0">Registros de logins, convites, cadastros, liberações no firewall, destinos, downloads, Estúdio IA e rotinas do sistema.</div></div>
+{% endblock %}

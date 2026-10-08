@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import ev_status %}
+{% block title %}{{ 'Não reconhecidos' if unparsed_view else 'Eventos' }}{% endblock %}{% block crumb %}Operação{% endblock %}{% block heading %}{{ 'Linhas não reconhecidas' if unparsed_view else 'Eventos no buffer' }}{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px"><div class="bd"><form class="row" method="get">
+  <select class="i" name="tenant_id" style="max-width:220px"><option value="">Todos os tenants</option>{% for t in tenants %}<option value="{{ t.id }}" {{ 'selected' if filt.tenant_id == t.id }}>{{ t.name }}</option>{% endfor %}</select>
+  <select class="i" name="source_id" style="max-width:260px"><option value="">Todas as fontes</option>{% for s in all_sources %}<option value="{{ s.id }}" {{ 'selected' if filt.source_id == s.id }}>{{ s.tenant.name }} · {{ s.name }}</option>{% endfor %}</select>
+  {% if not unparsed_view %}<select class="i" name="status" style="max-width:180px"><option value="">Todas</option><option value="parsed" {{ 'selected' if filt.status == 'parsed' }}>Reconhecidas</option><option value="unparsed" {{ 'selected' if filt.status == 'unparsed' }}>Não reconhecidas</option><option value="received" {{ 'selected' if filt.status == 'received' }}>Na fila</option></select>{% endif %}
+  <select class="i" name="minutes" style="max-width:150px">{% for m, l in [(0,'Todo o buffer'),(5,'5 min'),(15,'15 min'),(60,'1 hora'),(120,'2 horas')] %}<option value="{{ m }}" {{ 'selected' if (filt.minutes or 0) == m }}>{{ l }}</option>{% endfor %}</select>
+  <input class="i" name="q" value="{{ filt.q or '' }}" placeholder="contém…" style="max-width:200px"><button class="btn o" type="submit">Filtrar</button></form>
+  <form class="row" method="get" action="{{ url_for('admin.events_download') }}" style="margin-top:10px">{% for k, v in filt.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% if unparsed_view %}<input type="hidden" name="status" value="unparsed">{% endif %}
+  <span class="sm muted">Baixar o filtro como</span><select class="i" name="fmt" style="max-width:300px">{% for slug, name in outputs %}<option value="{{ slug }}" {{ 'selected' if unparsed_view and slug == 'raw' }}>{{ name }}</option>{% endfor %}</select>
+  <label class="row sm" style="gap:6px"><input type="checkbox" name="unparsed" value="1" {{ 'checked' if unparsed_view }}> incluir não reconhecidas</label><button class="btn o" type="submit">Baixar .txt</button></form></div></div>
+{% if unparsed_view %}
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Agrupado por fonte e motivo</h3></div><div class="tw"><table class="t">{% for sid, err, n in groups %}<tr><td><span class="tag">{{ n }}×</span></td><td class="sm">{{ src_names.get(sid, 'sem fonte (IP sem fonte definida / upload)') }}</td><td class="sm">{{ err }}</td></tr>{% else %}<tr><td class="empty-state">Nenhuma linha não reconhecida no buffer. 🎉</td></tr>{% endfor %}</table></div></div>
+<form method="post" action="{{ url_for('admin.unparsed_to_studio') }}">{{ csrf() }}
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Pedir ao Estúdio IA</h3></div><div class="bd">
+  <div class="sm muted" style="margin-bottom:8px">Marque as linhas abaixo e peça um parser novo ou o ajuste de um existente. A IA gera uma versão em rascunho com testes; publicar continua sendo decisão de um administrador. Dados sensíveis são mascarados antes do envio.</div>
+  <div class="two"><div class="fg"><label class="f">Ajustar parser existente</label><select class="i" name="parser_id"><option value="">Não — criar parser novo</option>{% for p in inputs %}<option value="{{ p.id }}">{{ p.vendor }} · {{ p.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">Título</label><input class="i" name="title" placeholder="Ex.: Firebox — logs de proxy HTTP"></div></div>
+  <div class="two"><div class="fg"><label class="f">Fabricante</label><input class="i" name="vendor"></div><div class="fg"><label class="f">Produto</label><input class="i" name="product"></div></div>
+  <div class="fg"><label class="f">Observações para a IA</label><input class="i" name="request"></div>
+  <button class="btn p" type="submit">✨ Enviar linhas marcadas ao Estúdio</button></div></div>
+{% endif %}
+<div class="card"><div class="tw"><table class="t"><tr>{% if unparsed_view %}<th>✓</th>{% endif %}<th>Recebido</th><th>Origem</th><th>Situação</th><th>Linha / evento</th></tr>
+{% for e in rows %}<tr>{% if unparsed_view %}<td><input type="checkbox" name="event_id" value="{{ e.id }}" {{ 'checked' if loop.index <= 20 }}></td>{% endif %}
+<td class="sm nowrap">{{ e.received_at|dt('%d/%m %H:%M:%S') }}</td><td class="sm"><span class="mono">{{ e.peer_ip or '' }}</span> {{ e.transport }}</td><td>{{ ev_status(e) }}</td>
+<td><details class="ev"><summary><span class="mono sm trunc">{{ e.raw }}</span></summary>{% if e.event %}<pre class="code">{{ e.event|tojson_pretty }}</pre>{% else %}<div class="sm" style="margin:6px 0">{{ e.error }}</div><pre class="code">{{ e.raw }}</pre>{% endif %}</details></td></tr>
+{% else %}<tr><td colspan="5" class="empty-state">Nada no buffer com esse filtro (o buffer guarda 2 h).</td></tr>{% endfor %}</table></div></div>
+{% if unparsed_view %}</form>{% endif %}
+{% endblock %}

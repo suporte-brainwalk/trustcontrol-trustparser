@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}{{ p.name }}{% endblock %}{% block crumb %}Parsers e formatos{% endblock %}{% block heading %}{{ p.name }}{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px"><div class="bd row">
+  <div style="flex:1"><div class="sm muted mono">{{ p.slug }} · {{ 'entrada' if p.kind == 'input' else 'saída' }} · {{ {'builtin':'embutido','studio':'Estúdio IA','manual':'editado'}[p.origin] }}</div>
+  <div>{% if p.basis == 'real' %}<span class="tag g">feito com amostra real</span>{% else %}<span class="tag">feito pela documentação — validar com dado real</span>{% endif %} <span class="st {{ 'ok' if p.active else 'warn' }}">{{ 'ativo' if p.active else 'inativo' }}</span></div>
+  <div class="sm" style="margin-top:6px">{{ p.description }}</div></div>
+  <form method="post" action="{{ url_for('admin.parser_action', pid=p.id) }}" class="inline-form">{{ csrf() }}<button class="btn o sm" name="action" value="{{ 'deactivate' if p.active else 'activate' }}" data-confirm-btn="{{ 'Desativar este parser? Fontes que dependem dele passam a ter linhas não reconhecidas.' if p.active else 'Ativar?' }}">{{ 'Desativar' if p.active else 'Ativar' }}</button></form>
+</div></div>
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>Versões</h3></div><div class="tw"><table class="t"><tr><th>Versão</th><th>Situação</th><th>Testes</th><th>Criada</th><th></th></tr>
+{% for v in versions %}{% set rep = v.report.tests if v.report and v.report.tests is defined else v.report %}<tr class="{{ 'on' if view and v.id == view.id }}"><td><a href="{{ url_for('admin.parser', pid=p.id, v=v.id) }}"><b>v{{ v.version }}</b></a></td>
+<td><span class="st {{ {'published':'ok','draft':'warn','rejected':'err'}.get(v.status, '') }}">{{ {'published':'publicada','draft':'rascunho','superseded':'anterior','rejected':'descartada'}[v.status] }}</span></td>
+<td class="sm">{% if rep and rep.total is defined %}{{ rep.passed }}/{{ rep.total }}{% else %}—{% endif %}</td><td class="sm">{{ v.created_at|dt }}<div class="muted">{{ v.created_by }}</div></td>
+<td class="nowrap"><form method="post" action="{{ url_for('admin.parser_action', pid=p.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="version_id" value="{{ v.id }}">
+{% if v.status == 'draft' %}<button class="link-btn" name="action" value="publish" data-confirm-btn="Publicar a v{{ v.version }}? Ela passa a rodar em produção.">publicar</button> · <button class="link-btn danger" name="action" value="reject">descartar</button>{% elif v.status == 'superseded' %}<button class="link-btn" name="action" value="rollback" data-confirm-btn="Voltar para a v{{ v.version }}?">voltar para esta</button>{% endif %}</form></td></tr>
+{% endfor %}</table></div></div>
+<div class="card"><div class="hd"><h3>Testar com amostras {{ '(v' ~ view.version ~ ')' if view }}</h3></div><div class="bd">
+{% if p.kind == 'input' %}<form method="post">{{ csrf() }}<textarea class="i code" name="samples" rows="7" placeholder="Cole linhas de log (uma por linha). Nada é gravado.">{{ request.form.get('samples', '') }}</textarea><div style="margin-top:8px"><button class="btn p sm" type="submit">Rodar o parser</button></div></form>
+{% if preview %}<div style="margin-top:12px"><b>{{ preview.parsed }}/{{ preview.total }}</b> linhas reconhecidas ({{ preview.pct }}%).
+{% for e in preview.errors %}<div class="sm"><span class="tag">{{ e.count }}×</span> {{ e.error }}</div>{% endfor %}
+{% for ex in preview.examples[:4] %}<details class="fieldset"><summary class="sm"><b>{{ ex.event.class_name or ex.event.metadata.parser_case }}</b> · UDM {{ ex.udm_type }}</summary><pre class="code">{{ ex.input }}</pre><pre class="code">{{ ex.event|tojson_pretty }}</pre>{% for f, o in ex.outputs.items() %}<div class="sm muted">{{ f }}</div><pre class="code">{{ o }}</pre>{% endfor %}</details>{% endfor %}
+{% for fl in preview.failed[:5] %}<div class="sm" style="margin-top:6px">✗ {{ fl.error }}<pre class="code">{{ fl.input }}</pre></div>{% endfor %}</div>{% endif %}
+{% else %}<div class="sm muted">Formatos de saída são testados no destino (botão “Testar conexão”) e no download.</div>{% endif %}
+</div></div></div>
+{% if view %}
+<div class="grid g2" style="margin-top:16px">
+<div class="card"><div class="hd"><h3>Spec da v{{ view.version }}</h3><span class="sp"></span><span class="sm muted">{{ view.notes }}</span></div><div class="bd"><pre class="code tall">{{ spec_json }}</pre></div></div>
+<div class="card"><div class="hd"><h3>Testes dourados e edição</h3></div><div class="bd">
+{% set rep = view.report.tests if view.report and view.report.tests is defined else view.report %}
+{% if rep and rep.failures %}{% for fl in rep.failures %}<div class="testmode alert-err">✗ <div><b>{{ fl.name }}</b> {{ fl.error or '' }}{% for d in fl.diffs or [] %}<div class="sm mono">{{ d.campo }}: esperado {{ d.esperado }} · obtido {{ d.obtido }}</div>{% endfor %}</div></div>{% endfor %}{% elif rep and rep.total is defined %}<div class="sm">✓ {{ rep.passed }}/{{ rep.total }} testes ok.</div>{% endif %}
+<details class="fieldset"><summary class="sm"><b>Editar e criar nova versão (rascunho)</b></summary>
+<form method="post" action="{{ url_for('admin.parser_action', pid=p.id) }}">{{ csrf() }}<input type="hidden" name="action" value="new_version">
+<label class="f">Spec (JSON)</label><textarea class="i code" name="spec" rows="18">{{ spec_json }}</textarea>
+<label class="f">Testes (JSON)</label><textarea class="i code" name="tests" rows="8">{{ tests_json }}</textarea>
+<input class="i" name="notes" placeholder="O que mudou" style="margin-top:8px"><div style="margin-top:8px"><button class="btn p sm">Criar rascunho</button></div></form>
+<div class="note">Linguagem dos parsers: docs/dsl.md. Publicar exige 100% dos testes ok.</div></details>
+</div></div></div>
+{% endif %}
+{% endblock %}

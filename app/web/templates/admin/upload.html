@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "_tp.html" import ev_status %}
+{% block title %}{{ up.filename }}{% endblock %}{% block crumb %}Upload e download{% endblock %}{% block heading %}{{ up.filename }}{% endblock %}
+{% block content %}
+{% if up.status == 'processing' %}<div class="testmode">⏳ <div>Processando… <a href="">atualizar</a></div></div>{% endif %}
+{% if up.status == 'expired' %}<div class="testmode alert-warn">⌛ <div>O resultado expirou (buffer de curta duração). Envie o arquivo de novo.</div></div>{% endif %}
+<div class="grid g4">
+  <div class="card kpi accent"><div class="l">Linhas</div><div class="v">{{ up.lines|num }}</div><div class="s">{{ up.tenant.name }}</div></div>
+  <div class="card kpi blue"><div class="l">Reconhecidas</div><div class="v">{{ up.parsed|num }}</div><div class="s">{{ ((up.parsed * 100 / up.lines)|round(1)) if up.lines else 0 }}%</div></div>
+  <div class="card kpi red"><div class="l">Não reconhecidas</div><div class="v">{{ up.unparsed|num }}</div><div class="s">{{ up.parser.name if up.parser else 'autodetecção' }}</div></div>
+  <div class="card kpi purple"><div class="l">Expira</div><div class="v" style="font-size:18px">{{ up.expires_at|dt }}</div><div class="s">{{ 'enviado aos destinos' if up.send_to_destinations else 'só download' }}</div></div>
+</div>
+{% if up.status != 'expired' %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Baixar resultado</h3></div><div class="bd"><form class="row" method="get" action="{{ url_for(request.blueprint ~ '.upload_download', uid=up.id) }}">
+  <select class="i" name="fmt" style="max-width:340px">{% for slug, name in outputs %}<option value="{{ slug }}">{{ name }}</option>{% endfor %}</select>
+  <label class="row sm" style="gap:6px"><input type="checkbox" name="unparsed" value="1"> incluir linhas não reconhecidas (bruto)</label><button class="btn p" type="submit">Baixar .txt</button></form></div></div>{% endif %}
+{% if errors %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Por que algumas linhas não foram reconhecidas</h3></div><div class="tw"><table class="t">{% for err, n in errors %}<tr><td><span class="tag">{{ n }}×</span></td><td class="sm">{{ err }}</td></tr>{% endfor %}</table></div></div>{% endif %}
+<div class="card" style="margin-top:16px"><div class="hd"><h3>Primeiras linhas</h3></div><div class="tw"><table class="t"><tr><th>#</th><th>Situação</th><th>Evento</th></tr>
+{% for e in sample %}<tr><td class="sm">{{ e.line_no }}</td><td>{{ ev_status(e) }}</td><td><details class="ev"><summary><span class="mono sm trunc">{{ e.raw }}</span></summary>{% if e.event %}<pre class="code">{{ e.event|tojson_pretty }}</pre>{% else %}<div class="sm">{{ e.error }}</div>{% endif %}</details></td></tr>{% endfor %}</table></div></div>
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% from "_tp.html" import st_badge %}
+{% block title %}Destinos{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Destinos{% endblock %}
+{% block content %}
+<div class="card"><div class="tw"><table class="t"><tr><th>Destino</th><th>Tipo</th><th>Formato</th><th>Situação</th><th>Enviados</th><th>Pendentes</th></tr>
+{% for d in rows %}<tr><td><b>{{ d.name }}</b></td><td class="sm">{{ kinds[d.kind].name if d.kind in kinds else d.kind }}</td><td class="sm mono">{{ d.format }}</td><td>{{ st_badge(d.status) }}</td><td>{{ d.sent_total|num }}</td><td>{{ (pending.get(d.id) or 0)|num }}</td></tr>
+{% else %}<tr><td colspan="6" class="empty-state">Nenhum destino cadastrado. A Trust cadastra os destinos e as credenciais.</td></tr>{% endfor %}</table></div>
+<div class="bd note" style="margin:0">Credenciais ficam cifradas e não aparecem aqui.</div></div>
+{% endblock %}

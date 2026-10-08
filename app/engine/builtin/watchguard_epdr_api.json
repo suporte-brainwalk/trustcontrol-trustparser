@@ -1,0 +1,919 @@
+{
+ "slug": "watchguard-epdr-api-json",
+ "name": "WatchGuard EPDR · API de eventos de segurança (JSON)",
+ "vendor": "WatchGuard",
+ "product": "Endpoint Security (EPDR/EDR, ex-Panda Adaptive Defense)",
+ "description": "Um item de 'data' do GET /securityevents/{tipo}/export/{período} da Endpoint Security Management API (WatchGuard Cloud), serializado em uma linha. Malware, PUP, programas bloqueados, exploits, IOA, ataques de rede, conexões e dispositivos bloqueados viram Detection Finding com equipamento, usuário, arquivo/hash, endpoints de rede e decisão (campo action). Feito pela documentação (exemplo oficial é inválido e mistura todos os tipos) — validar com resposta real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "all": [
+   {
+    "re": "^\\s*\\{"
+   },
+   {
+    "contains": "\"event_id\""
+   },
+   {
+    "any": [
+     {
+      "contains": "\"host_name\""
+     },
+     {
+      "contains": "\"device_id\""
+     }
+    ]
+   },
+   {
+    "any": [
+     {
+      "contains": "\"item_name\""
+     },
+     {
+      "contains": "\"malware_name\""
+     },
+     {
+      "contains": "\"rule_name\""
+     },
+     {
+      "contains": "\"network_attack\""
+     },
+     {
+      "contains": "\"protection_mode\""
+     },
+     {
+      "contains": "\"detected_by\""
+     },
+     {
+      "contains": "\"security_event_date\""
+     },
+     {
+      "contains": "\"was_run\""
+     },
+     {
+      "contains": "\"malware_type\""
+     }
+    ]
+   },
+   {
+    "not": {
+     "contains": "\"alert_id\""
+    }
+   }
+  ]
+ },
+ "steps": [
+  {
+   "op": "json",
+   "from": "$raw",
+   "to": "j"
+  },
+  {
+   "op": "json",
+   "from": "j.local_endpoint",
+   "to": "le",
+   "optional": true
+  },
+  {
+   "op": "json",
+   "from": "j.remote_endpoint",
+   "to": "re",
+   "optional": true
+  },
+  {
+   "op": "set",
+   "to": "title",
+   "value": {
+    "first": [
+     {
+      "path": "j.item_name",
+      "type": "nil"
+     },
+     {
+      "path": "j.malware_name",
+      "type": "nil"
+     },
+     {
+      "path": "j.network_attack",
+      "type": "nil"
+     },
+     {
+      "path": "j.rule_name",
+      "type": "nil"
+     },
+     {
+      "path": "j.description",
+      "type": "nil"
+     }
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "j.date",
+     "type": "time"
+    },
+    {
+     "path": "j.security_event_date",
+     "type": "time"
+    },
+    {
+     "path": "j.endpoint_event_date",
+     "type": "time"
+    },
+    {
+     "path": "j.filed_date",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "WatchGuard"
+  },
+  "metadata.product.name": {
+   "const": "Endpoint Security (EPDR)"
+  },
+  "metadata.uid": {
+   "path": "j.event_id",
+   "type": "str"
+  },
+  "metadata.event_code": {
+   "first": [
+    {
+     "path": "j.event_type",
+     "type": "str"
+    },
+    {
+     "const": "security_event"
+    }
+   ]
+  },
+  "metadata.event_subtype": {
+   "lookup": {
+    "path": "j.event_type",
+    "type": "str"
+   },
+   "table": {
+    "0": "Malware",
+    "1": "Exploit",
+    "2": "PUPs",
+    "3": "Blocked Item",
+    "6": "Lock Plus Advanced Security",
+    "7": "Lock Plus Application Control",
+    "8": "Application Control",
+    "10": "Network Attack Activity"
+   }
+  },
+  "class_uid": {
+   "const": 2004
+  },
+  "class_name": {
+   "const": "Detection Finding"
+  },
+  "category_uid": {
+   "const": 2
+  },
+  "category_name": {
+   "const": "Findings"
+  },
+  "activity_id": {
+   "const": 1
+  },
+  "activity_name": {
+   "const": "Create"
+  },
+  "finding_info.uid": {
+   "path": "j.event_id",
+   "type": "str"
+  },
+  "finding_info.title": {
+   "first": [
+    "title",
+    {
+     "const": "Evento de segurança EPDR"
+    }
+   ]
+  },
+  "finding_info.types": {
+   "list": [
+    {
+     "lookup": {
+      "path": "j.event_type",
+      "type": "str"
+     },
+     "table": {
+      "0": "Malware",
+      "1": "Exploit",
+      "2": "PUPs",
+      "3": "Blocked Item",
+      "6": "Lock Plus Advanced Security",
+      "7": "Lock Plus Application Control",
+      "8": "Application Control",
+      "10": "Network Attack Activity"
+     }
+    },
+    {
+     "lookup": {
+      "path": "j.detected_by",
+      "type": "str"
+     },
+     "table": {
+      "1": "On-Demand Scan",
+      "2": "File Resident",
+      "3": "Mail Resident",
+      "4": "Firewall",
+      "5": "Device Control",
+      "9": "Web Protection",
+      "11": "Minerva",
+      "12": "Web Access Control",
+      "14": "Anti-tampering",
+      "20": "Application Control",
+      "22": "Authorized Software"
+     }
+    }
+   ]
+  },
+  "message": {
+   "first": [
+    {
+     "template": "{title} ({j.host_name})",
+     "strict": true
+    },
+    "title"
+   ]
+  },
+  "severity_id": {
+   "first": [
+    {
+     "lookup": {
+      "path": "j.rule_risk",
+      "type": "str"
+     },
+     "table": {
+      "1": 5,
+      "2": 4,
+      "3": 3,
+      "4": 2
+     }
+    },
+    {
+     "lookup": {
+      "path": "j.like_lihood_of_being_malicious",
+      "type": "str"
+     },
+     "table": {
+      "0": 2,
+      "1": 3,
+      "2": 4,
+      "3": 5
+     }
+    },
+    {
+     "lookup": "j.action",
+     "table": {
+      "0": 4,
+      "1": 3,
+      "2": 3,
+      "3": 3,
+      "4": 4,
+      "5": 3,
+      "6": 3,
+      "7": 2,
+      "8": 2,
+      "9": 3,
+      "10": 3,
+      "11": 3,
+      "13": 3,
+      "14": 3,
+      "15": 4,
+      "16": 3,
+      "17": 2,
+      "18": 2,
+      "21": 3,
+      "1009": 3,
+      "1010": 2,
+      "1011": 3,
+      "1012": 3
+     }
+    },
+    {
+     "const": 3
+    }
+   ]
+  },
+  "disposition": {
+   "first": [
+    {
+     "lookup": "j.action",
+     "table": {
+      "0": "Allowed",
+      "1": "Quarantined",
+      "2": "Blocked",
+      "3": "Blocked",
+      "4": "Allowed",
+      "5": "Corrected",
+      "6": "Deleted",
+      "7": "Restored",
+      "8": "Allowed",
+      "9": "Blocked",
+      "10": "Detected",
+      "11": "Deleted",
+      "13": "Blocked",
+      "14": "Blocked",
+      "15": "Allowed",
+      "16": "Detected",
+      "17": "Allowed",
+      "18": "Allowed",
+      "21": "Blocked",
+      "1009": "Detected",
+      "1010": "Allowed",
+      "1011": "Isolated",
+      "1012": "Blocked"
+     }
+    },
+    {
+     "const": "Detected"
+    }
+   ]
+  },
+  "disposition_id": {
+   "first": [
+    {
+     "lookup": "j.action",
+     "table": {
+      "0": 1,
+      "1": 3,
+      "2": 2,
+      "3": 2,
+      "4": 1,
+      "5": 11,
+      "6": 5,
+      "7": 12,
+      "8": 1,
+      "9": 2,
+      "10": 15,
+      "11": 5,
+      "13": 2,
+      "14": 2,
+      "15": 1,
+      "16": 15,
+      "17": 1,
+      "18": 1,
+      "21": 2,
+      "1009": 15,
+      "1010": 1,
+      "1011": 4,
+      "1012": 2
+     }
+    },
+    {
+     "const": 15
+    }
+   ]
+  },
+  "action": {
+   "lookup": "j.action",
+   "table": {
+    "0": "Allowed",
+    "1": "Denied",
+    "2": "Denied",
+    "3": "Denied",
+    "4": "Allowed",
+    "5": "Denied",
+    "6": "Denied",
+    "7": "Allowed",
+    "8": "Allowed",
+    "9": "Denied",
+    "11": "Denied",
+    "13": "Denied",
+    "14": "Denied",
+    "15": "Allowed",
+    "17": "Allowed",
+    "18": "Allowed",
+    "21": "Denied",
+    "1010": "Allowed",
+    "1011": "Denied",
+    "1012": "Denied"
+   }
+  },
+  "action_id": {
+   "lookup": "j.action",
+   "table": {
+    "0": 1,
+    "1": 2,
+    "2": 2,
+    "3": 2,
+    "4": 1,
+    "5": 2,
+    "6": 2,
+    "7": 1,
+    "8": 1,
+    "9": 2,
+    "11": 2,
+    "13": 2,
+    "14": 2,
+    "15": 1,
+    "17": 1,
+    "18": 1,
+    "21": 2,
+    "1010": 1,
+    "1011": 2,
+    "1012": 2
+   }
+  },
+  "device.hostname": "j.host_name",
+  "device.uid": "j.device_id",
+  "device.domain": {
+   "path": "j.domain",
+   "type": "nil"
+  },
+  "device.ip": {
+   "first": [
+    {
+     "path": "j.ip_address",
+     "type": "ip"
+    },
+    {
+     "path": "le.ip_address",
+     "type": "ip"
+    },
+    {
+     "path": "j.local_ip_address",
+     "type": "ip"
+    }
+   ]
+  },
+  "device.os.name": {
+   "lookup": {
+    "path": "j.platform_id",
+    "type": "str"
+   },
+   "table": {
+    "1": "Windows",
+    "2": "Linux",
+    "3": "macOS",
+    "4": "Android",
+    "5": "iOS"
+   }
+  },
+  "device.type": {
+   "lookup": {
+    "path": "j.device_type",
+    "type": "str"
+   },
+   "table": {
+    "1": "Workstation",
+    "2": "Laptop",
+    "3": "Server",
+    "4": "Mobile"
+   }
+  },
+  "actor.user.name": {
+   "path": "j.user_name",
+   "type": [
+    "nil",
+    "user"
+   ]
+  },
+  "actor.user.domain": {
+   "path": "j.user_name",
+   "type": [
+    "nil",
+    "domain"
+   ]
+  },
+  "actor.user.full_name": {
+   "path": "j.user_name",
+   "type": "nil"
+  },
+  "file.path": {
+   "path": "j.path",
+   "type": "nil"
+  },
+  "file.name": {
+   "path": "j.path",
+   "type": [
+    "nil",
+    "basename"
+   ]
+  },
+  "file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "path": "j.hash",
+       "type": [
+        "nil",
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "path": "j.hash",
+       "type": "nil"
+      }
+     }
+    }
+   ]
+  },
+  "src_endpoint.ip": {
+   "first": [
+    {
+     "path": "le.ip_address",
+     "type": "ip"
+    },
+    {
+     "path": "j.local_ip_address",
+     "type": "ip"
+    }
+   ]
+  },
+  "src_endpoint.port": {
+   "path": "le.port",
+   "type": "int"
+  },
+  "dst_endpoint.ip": {
+   "first": [
+    {
+     "path": "re.ip_address",
+     "type": "ip"
+    },
+    {
+     "path": "j.remote_ip_address",
+     "type": "ip"
+    },
+    {
+     "path": "j.source_ip",
+     "type": "ip"
+    }
+   ]
+  },
+  "dst_endpoint.port": {
+   "path": "re.port",
+   "type": "int"
+  },
+  "dst_endpoint.hostname": {
+   "path": "j.source_machine_name",
+   "type": "nil"
+  },
+  "connection_info.direction": {
+   "lookup": {
+    "path": "j.direction",
+    "type": "str"
+   },
+   "table": {
+    "1": "Inbound",
+    "2": "Outbound",
+    "3": "Bidirectional",
+    "4": "Lateral"
+   }
+  },
+  "connection_info.protocol_name": {
+   "lookup": {
+    "path": "j.protocol",
+    "type": "str"
+   },
+   "table": {
+    "1": "tcp",
+    "2": "udp",
+    "3": "tcp/udp",
+    "4": "icmp",
+    "5": "ip"
+   }
+  },
+  "rule.name": {
+   "path": "j.rule_name",
+   "type": "nil"
+  },
+  "rule.uid": {
+   "path": "j.rule_id",
+   "type": "nil"
+  },
+  "unmapped.attacks": "j.rule_mitre"
+ },
+ "cases": [
+  {
+   "name": "deteccao-com-arquivo",
+   "when": {
+    "all": [
+     {
+      "path": "title",
+      "exists": true
+     },
+     {
+      "any": [
+       {
+        "path": "j.path",
+        "exists": true
+       },
+       {
+        "path": "j.hash",
+        "exists": true
+       }
+      ]
+     },
+     {
+      "path": "j.rule_mitre",
+      "exists": false
+     }
+    ]
+   },
+   "map": {
+    "malware": {
+     "list": [
+      {
+       "object": {
+        "name": {
+         "first": [
+          {
+           "path": "j.item_name",
+           "type": "nil"
+          },
+          {
+           "path": "j.malware_name",
+           "type": "nil"
+          }
+         ]
+        },
+        "classification": {
+         "lookup": {
+          "path": "j.malware_type",
+          "type": "str"
+         },
+         "table": {
+          "101": "Virus",
+          "102": "Worm",
+          "103": "Trojan",
+          "108": "Spyware",
+          "109": "Adware",
+          "112": "PUP",
+          "113": "Hacking Tool",
+          "120": "Rootkit",
+          "121": "Backdoor",
+          "123": "Malicious URL"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "indicador-de-ataque",
+   "when": {
+    "any": [
+     {
+      "path": "j.rule_mitre",
+      "exists": true
+     },
+     {
+      "path": "j.rule_risk",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "disposition": {
+     "lookup": {
+      "path": "j.action",
+      "type": "str"
+     },
+     "table": {
+      "1": "Detected",
+      "2": "Blocked"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": {
+      "path": "j.action",
+      "type": "str"
+     },
+     "table": {
+      "1": 15,
+      "2": 2
+     },
+     "default": 15
+    },
+    "action": {
+     "lookup": {
+      "path": "j.action",
+      "type": "str"
+     },
+     "table": {
+      "2": "Denied"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "path": "j.action",
+      "type": "str"
+     },
+     "table": {
+      "2": 2
+     }
+    },
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Indicator of Attack"
+      }
+     ]
+    },
+    "unmapped.count": "j.count"
+   }
+  },
+  {
+   "name": "rede-de-entrada",
+   "when": {
+    "path": "j.direction",
+    "in": [
+     "1"
+    ]
+   },
+   "map": {
+    "src_endpoint.ip": {
+     "first": [
+      {
+       "path": "re.ip_address",
+       "type": "ip"
+      },
+      {
+       "path": "j.remote_ip_address",
+       "type": "ip"
+      },
+      {
+       "path": "j.source_ip",
+       "type": "ip"
+      }
+     ]
+    },
+    "src_endpoint.port": {
+     "path": "re.port",
+     "type": "int"
+    },
+    "dst_endpoint.ip": {
+     "first": [
+      {
+       "path": "le.ip_address",
+       "type": "ip"
+      },
+      {
+       "path": "j.local_ip_address",
+       "type": "ip"
+      }
+     ]
+    },
+    "dst_endpoint.port": {
+     "path": "le.port",
+     "type": "int"
+    }
+   },
+   "unset": [
+    "src_endpoint",
+    "dst_endpoint"
+   ]
+  }
+ ],
+ "unmapped": [
+  "j"
+ ],
+ "unmapped_drop": [
+  "event_id",
+  "date",
+  "device_id",
+  "host_name",
+  "domain",
+  "ip_address",
+  "user_name",
+  "item_name",
+  "malware_name",
+  "path",
+  "hash",
+  "action",
+  "event_type",
+  "rule_name",
+  "rule_id",
+  "rule_mitre",
+  "rule_risk",
+  "local_endpoint",
+  "remote_endpoint",
+  "local_ip_address",
+  "remote_ip_address",
+  "direction",
+  "protocol",
+  "platform_id",
+  "device_type",
+  "description",
+  "source_ip",
+  "source_machine_name"
+ ],
+ "require": [
+  "time",
+  "device.hostname"
+ ],
+ "tests": [
+  {
+   "name": "exemplo da documentação (união de campos, IPs entre aspas)",
+   "input": "{\"accessed_data\":true,\"action\":10,\"date\":\"2020-11-20T20:27:18.725Z\",\"device_id\":\"8b7205bc-60e0-45a0-9956-b17b6a8673f6\",\"site_id\":\"8b7205bc-60e0-45a0-9956-b17b6a8673f6\",\"event_id\":69608597,\"hash\":\"009a9b4ff00946f9a5a5659dfe9086da\",\"host_name\":\"WIN_SERVER_6\",\"item_name\":\"NameMalware\",\"path\":\"ThreatPath\",\"user_name\":\"Username\",\"was_run\":true,\"rule_mitre\":\"tactic: TA0006, technique: T1003\",\"local_endpoint\":{},\"remote_endpoint\":{},\"network_attack\":null,\"local_ip_address\":\"192.168.1.1\",\"remote_ip_address\":\"192.168.10.1\"}",
+   "expect": {
+    "time": "2020-11-20T20:27:18.725Z",
+    "class_uid": 2004,
+    "finding_info.title": "NameMalware",
+    "metadata.uid": "69608597",
+    "device.hostname": "WIN_SERVER_6",
+    "file.path": "ThreatPath",
+    "file.hashes.0.algorithm": "MD5",
+    "disposition": "Detected",
+    "src_endpoint.ip": "192.168.1.1",
+    "dst_endpoint.ip": "192.168.10.1",
+    "actor.user.name": "Username",
+    "unmapped.attacks": "tactic: TA0006, technique: T1003"
+   }
+  },
+  {
+   "name": "malware em quarentena (tipo 1)",
+   "input": "{\"event_id\":71234567,\"date\":\"2026-10-08T12:30:00.000Z\",\"security_event_date\":\"2026-10-08T12:29:41.000Z\",\"device_id\":\"00000000-0000-4000-8000-0000000000a1\",\"site_id\":\"00000000-0000-4000-8000-0000000000f1\",\"site_name\":\"Matriz\",\"host_name\":\"PC-0010\",\"domain\":\"ACME\",\"ip_address\":\"10.1.2.3\",\"user_name\":\"ACME\\\\usuario1\",\"item_name\":\"Trj/GdSda.A\",\"path\":\"C:\\\\Users\\\\usuario1\\\\Downloads\\\\fatura.exe\",\"hash\":\"e99a18c428cb38d5f260853678922e03\",\"action\":1,\"event_type\":0,\"detected_by\":2,\"malware_type\":103,\"malware_category\":9,\"was_run\":false,\"accessed_data\":false,\"made_external_connections\":false,\"dwell_time\":0,\"number_of_occurrences\":1,\"platform_id\":1,\"device_type\":1,\"is_excluded\":false}",
+   "expect": {
+    "class_uid": 2004,
+    "metadata.parser_case": "deteccao-com-arquivo",
+    "disposition": "Quarantined",
+    "action": "Denied",
+    "severity_id": 3,
+    "malware.0.name": "Trj/GdSda.A",
+    "malware.0.classification": "Trojan",
+    "file.name": "fatura.exe",
+    "device.ip": "10.1.2.3",
+    "actor.user.name": "usuario1",
+    "actor.user.domain": "ACME",
+    "finding_info.types": [
+     "Malware",
+     "File Resident"
+    ],
+    "device.os.name": "Windows",
+    "metadata.event_code": "0"
+   }
+  },
+  {
+   "name": "programa bloqueado (tipo 3)",
+   "input": "{\"event_id\":71234570,\"date\":\"2026-10-08T12:40:00.000Z\",\"device_id\":\"00000000-0000-4000-8000-0000000000a2\",\"host_name\":\"PC-0011\",\"user_name\":\"ACME\\\\usuario2\",\"item_name\":\"setup_crack.exe\",\"path\":\"C:\\\\Users\\\\usuario2\\\\Desktop\\\\setup_crack.exe\",\"hash\":\"0cc175b9c0f1b6a831c399e269772661\",\"action\":2,\"event_type\":3,\"protection_mode\":3,\"dwell_time\":0,\"was_run\":false,\"platform_id\":1,\"device_type\":2}",
+   "expect": {
+    "disposition": "Blocked",
+    "disposition_id": 2,
+    "finding_info.title": "setup_crack.exe",
+    "metadata.event_subtype": "Blocked Item",
+    "device.type": "Laptop",
+    "unmapped.protection_mode": 3
+   }
+  },
+  {
+   "name": "indicador de ataque (tipo 18)",
+   "input": "{\"event_id\":71234580,\"date\":\"2026-10-08T13:00:00.000Z\",\"endpoint_event_date\":\"2026-10-08T12:58:12.000Z\",\"filed_date\":\"2026-10-08T13:00:00.000Z\",\"device_id\":\"00000000-0000-4000-8000-0000000000a3\",\"host_name\":\"SRV-0001\",\"rule_name\":\"Credential dumping via LSASS access\",\"rule_id\":\"00000000-0000-4000-8000-0000000000b1\",\"rule_mitre\":\"[{tactic: \\\"TA0006\\\", technique: \\\"T1003\\\"}]\",\"rule_risk\":2,\"action\":2,\"status\":1,\"count\":3,\"since_until_filed\":\"0.00:01:48\"}",
+   "expect": {
+    "time": "2026-10-08T13:00:00.000Z",
+    "metadata.parser_case": "indicador-de-ataque",
+    "severity_id": 4,
+    "disposition": "Blocked",
+    "finding_info.title": "Credential dumping via LSASS access",
+    "finding_info.types": [
+     "Indicator of Attack"
+    ],
+    "rule.uid": "00000000-0000-4000-8000-0000000000b1",
+    "unmapped.count": 3
+   }
+  },
+  {
+   "name": "ataque de rede bloqueado (tipo 19, endpoints em JSON texto)",
+   "input": "{\"event_id\":71234590,\"date\":\"2026-10-08T13:10:00.000Z\",\"device_id\":\"00000000-0000-4000-8000-0000000000a4\",\"host_name\":\"PC-0012\",\"network_attack\":\"TcpPortScan\",\"network_activity_type\":15,\"direction\":1,\"protocol\":1,\"local_endpoint\":\"{\\\"mac_address\\\": \\\"34:0A:E5:C2:DE:0C\\\",\\\"ip_address\\\": \\\"192.168.0.173\\\",\\\"port\\\": 58550,\\\"ip_type\\\": 1}\",\"remote_endpoint\":\"{\\\"mac_address\\\": \\\"00:00:5E:00:53:01\\\",\\\"ip_address\\\": \\\"203.0.113.77\\\",\\\"port\\\": 445,\\\"ip_type\\\": 1}\",\"action\":2,\"rule_name\":\"Bloquear varredura de portas\",\"count\":12}",
+   "expect": {
+    "finding_info.title": "TcpPortScan",
+    "dst_endpoint.ip": "192.168.0.173",
+    "dst_endpoint.port": 58550,
+    "src_endpoint.ip": "203.0.113.77",
+    "src_endpoint.port": 445,
+    "metadata.parser_case": "rede-de-entrada",
+    "connection_info.direction": "Inbound",
+    "connection_info.protocol_name": "tcp",
+    "device.ip": "192.168.0.173",
+    "rule.name": "Bloquear varredura de portas"
+   }
+  },
+  {
+   "name": "dispositivo bloqueado (tipo 17)",
+   "input": "{\"event_id\":71234600,\"date\":\"2026-10-08T13:20:00.000Z\",\"device_id\":\"00000000-0000-4000-8000-0000000000a5\",\"host_name\":\"PC-0013\",\"user_name\":\"ACME\\\\usuario3\",\"description\":\"Kingston DataTraveler 3.0 USB Device\",\"instance_id\":\"USBSTOR\\\\DISK&VEN_KINGSTON&PROD_DATATRAVELER_3.0&REV_PMAP\\\\0000000000000001&0\",\"type\":1,\"action\":2,\"detected_by\":5}",
+   "expect": {
+    "finding_info.title": "Kingston DataTraveler 3.0 USB Device",
+    "finding_info.types": [
+     "Device Control"
+    ],
+    "disposition": "Blocked",
+    "actor.user.name": "usuario3",
+    "unmapped.type": 1
+   }
+  }
+ ]
+}

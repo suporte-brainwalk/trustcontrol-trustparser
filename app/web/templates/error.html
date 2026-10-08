@@ -1,0 +1,7 @@
+{% extends "auth/_layout.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block box %}
+<h2>{{ title }}</h2>
+<div class="sub">{{ message }} <span class="muted">(código {{ code }})</span></div>
+<a class="btn p" href="{{ url_for('index') }}">Voltar ao início</a>
+{% endblock %}

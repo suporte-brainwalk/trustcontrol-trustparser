@@ -1,0 +1,9 @@
+dkimpy==1.1.8
+dnspython==2.8.0
+SQLAlchemy==2.0.52
+psycopg[binary]==3.3.5
+pyotp==2.9.0
+playwright==1.55.0
+pillow==11.3.0
+pytest==8.4.2
+cryptography==46.0.1

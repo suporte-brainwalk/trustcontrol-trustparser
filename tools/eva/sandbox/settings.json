@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": ["Read", "Glob", "Grep", "Edit", "Write"],
+    "deny": ["Bash", "WebFetch", "WebSearch", "Task", "NotebookEdit"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "*", "hooks": [{"type": "command", "command": "python3 /opt/eva/guard.py"}]}
+    ]
+  },
+  "includeCoAuthoredBy": false,
+  "cleanupPeriodDays": 365
+}

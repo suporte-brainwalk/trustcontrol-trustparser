@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Estúdio · {{ job.title }}{% endblock %}{% block crumb %}Estúdio IA · pedido #{{ job.id }}{% endblock %}{% block heading %}{{ job.title }}{% endblock %}
+{% block content %}
+{% if job.status in ('queued', 'running') %}<div class="testmode">⏳ <div>{{ 'Na fila' if job.status == 'queued' else 'Gerando' }}… leva de 1 a 5 minutos. <a href="">atualizar</a></div></div>{% endif %}
+{% if job.status == 'failed' %}<div class="testmode alert-err">⚠ <div><b>Falhou:</b> {{ job.error }}</div></div>{% endif %}
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>Resultado</h3></div><div class="bd">
+  <div class="sm">Tipo: <b>{{ {'input':'novo parser de entrada','output':'novo formato de saída','fix':'ajuste de parser'}[job.kind] }}</b> · pedido por {{ job.requested_by }} em {{ job.created_at|dt }}</div>
+  {% if p %}<div class="sm">Parser: <a href="{{ url_for('admin.parser', pid=p.id, v=v.id if v else None) }}">{{ p.name }}</a> {% if v %}· versão {{ v.version }} ({{ v.status }}){% endif %}</div>{% endif %}
+  {% set cov = job.report.coverage if job.report.coverage is defined else none %}
+  {% if cov %}<div style="margin-top:10px"><b>Cobertura nas amostras: {{ cov.pct }}%</b> ({{ cov.parsed }}/{{ cov.total }}){% for k, n in (cov.cases or {}).items() %} <span class="tag">{{ k }}: {{ n }}</span>{% endfor %}</div>
+    {% for e in cov.errors or [] %}<div class="sm">✗ {{ e.count }}× {{ e.error }}</div>{% endfor %}{% endif %}
+  {% if job.report.tests is defined %}<div class="sm" style="margin-top:6px">Testes dourados: <b>{{ job.report.tests.passed }}/{{ job.report.tests.total }}</b>{% for fl in job.report.tests.failures %}<div class="muted">✗ {{ fl.name }} {{ fl.error or '' }}{% for d in fl.diffs or [] %} · {{ d.campo }}: esperado {{ d.esperado }}, obtido {{ d.obtido }}{% endfor %}</div>{% endfor %}</div>{% endif %}
+  {% if job.report.notes %}<div class="note">Notas da IA: {{ job.report.notes }}</div>{% endif %}
+  {% if job.status == 'done' and v %}<form method="post" action="{{ url_for('admin.studio_decide', jid=job.id) }}" class="row" style="margin-top:14px">{{ csrf() }}
+    <button class="btn p" name="decision" value="approve" data-confirm-btn="Publicar a versão gerada? Ela passa a rodar em produção.">Aprovar e publicar</button><button class="btn o" name="decision" value="reject">Descartar</button></form>
+    <div class="note">Antes de aprovar, confira os exemplos ao lado e, se quiser, rode mais amostras na página do parser.</div>{% endif %}
+  <div class="sm muted" style="margin-top:10px">IA: {{ job.ai_calls }} chamada(s) · US$ {{ '%.4f'|format(job.ai_cost_usd) }}{% if job.decided_by %} · decidido por {{ job.decided_by }} em {{ job.decided_at|dt }}{% endif %}</div>
+</div></div>
+<div class="card"><div class="hd"><h3>Andamento</h3></div><div class="bd">{% for l in job.log %}<div class="sm"><span class="muted">{{ l.at[11:19] }}</span> {{ l.msg }}</div>{% endfor %}</div></div>
+</div>
+{% if cov and cov.examples %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Exemplos (entrada → evento)</h3></div><div class="bd">
+{% for ex in cov.examples[:6] %}<details class="fieldset" {{ 'open' if loop.first }}><summary class="sm"><b>{{ ex.event.metadata.parser_case if ex.event.metadata and ex.event.metadata.parser_case else ex.event.class_name }}</b> · UDM {{ ex.udm_type }}</summary><pre class="code">{{ ex.input }}</pre><pre class="code">{{ ex.event|tojson_pretty }}</pre></details>{% endfor %}
+{% for f in cov.failed or [] %}<div class="sm">✗ {{ f.error }}<pre class="code">{{ f.input }}</pre></div>{% endfor %}</div></div>{% endif %}
+{% if job.report.rendered is defined %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Exemplos de saída</h3></div><div class="bd">{% for r in job.report.rendered %}<pre class="code">{{ r }}</pre>{% endfor %}{% for e in job.report.errors %}<div class="sm">✗ {{ e }}</div>{% endfor %}</div></div>{% endif %}
+{% if spec_json %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Spec gerado</h3></div><div class="bd"><pre class="code tall">{{ spec_json }}</pre></div></div>{% endif %}
+{% endblock %}

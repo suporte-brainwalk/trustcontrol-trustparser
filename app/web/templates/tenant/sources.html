@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import syslog_box %}
+{% block title %}Fontes e IPs{% endblock %}{% block crumb %}{{ t.name }}{% endblock %}{% block heading %}Fontes e IPs liberados{% endblock %}
+{% block content %}
+<div class="grid g2">
+<div class="card"><div class="hd"><h3>IPs que podem enviar syslog</h3></div><div class="tw"><table class="t"><tr><th>IP / faixa</th><th>Protocolos</th><th>Fonte</th><th>Descrição</th>{% if is_manager %}<th></th>{% endif %}</tr>
+{% for a in ips %}<tr class="{{ 'muted-row' if not a.active }}"><td class="mono">{{ a.cidr }}</td><td>{% for p in a.protocols %}<span class="tag">{{ p|upper }}</span>{% endfor %}</td><td class="sm">{{ a.source.name if a.source else 'qualquer fonte' }}</td><td class="sm">{{ a.description }}</td>
+{% if is_manager %}<td class="nowrap"><form method="post" action="{{ url_for('tenant.ip_action', aid=a.id) }}" class="inline-form">{{ csrf() }}<button class="link-btn" name="action" value="toggle">{{ 'desativar' if a.active else 'ativar' }}</button> · <button class="link-btn danger" name="action" value="delete" data-confirm-btn="Remover {{ a.cidr }}?">remover</button></form></td>{% endif %}</tr>
+{% else %}<tr><td colspan="5" class="empty-state">Nenhum IP liberado.</td></tr>{% endfor %}</table></div>
+<div class="bd note" style="margin:0">Firewall {{ 'em dia' if fw.in_sync else 'aplicando a última alteração (até 1 minuto)' }}.</div></div>
+<div class="grid" style="align-content:start">
+{% if is_manager %}<div class="card"><div class="hd"><h3>Liberar IP</h3></div><div class="bd"><form method="post" action="{{ url_for('tenant.ip_add') }}">{{ csrf() }}
+  <div class="fg"><label class="f">IP ou faixa (IPv4, até /16)</label><input class="i mono" name="cidr" required placeholder="200.100.50.10"></div>
+  <div class="fg"><label class="f">Protocolos</label><div class="row">{% for p, l in protocols.items() %}<label class="row" style="gap:6px"><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p == 'tls' }}> {{ l }}</label>{% endfor %}</div></div>
+  <div class="fg"><label class="f">Fonte</label><select class="i" name="source_id"><option value="">Qualquer fonte</option>{% for s in sources if s.transport == 'syslog' %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">Descrição</label><input class="i" name="description" maxlength="200"></div><button class="btn p" type="submit">Liberar</button></form></div></div>{% endif %}
+<div class="card"><div class="hd"><h3>Configure o equipamento para enviar para</h3></div><div class="bd">{{ syslog_box(syslog) }}</div></div>
+</div></div>
+<div class="card" style="margin-top:16px"><div class="hd"><h3>Fontes cadastradas</h3></div><div class="tw"><table class="t"><tr><th>Fonte</th><th>Entrada</th><th>Parser</th><th>Último evento</th></tr>
+{% for s in sources %}<tr><td><b>{{ s.name }}</b></td><td>{{ s.transport }}{% if s.connector %} · {{ s.connector }}{% endif %}</td><td class="sm">{{ s.parser.name if s.parser else 'autodetectar' }}</td><td class="sm">{{ s.last_event_at|dt }}</td></tr>{% else %}<tr><td colspan="4" class="empty-state">A Trust ainda não cadastrou fontes para você.</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

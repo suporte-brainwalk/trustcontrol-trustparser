@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Parsers e formatos{% endblock %}{% block crumb %}Parsing{% endblock %}{% block heading %}Parsers e formatos{% endblock %}
+{% block actions %}<a class="btn p" href="{{ url_for('admin.studio') }}">✨ Novo pelo Estúdio IA</a>{% endblock %}
+{% block content %}
+{% for kind, title, desc in [('input','Parsers de entrada','Linha bruta → evento normalizado (OCSF). A autodetecção usa a assinatura de cada parser, na ordem de prioridade.'),('output','Formatos de saída','Evento normalizado → formato do destino.')] %}
+<div class="card" style="margin-bottom:16px"><div class="hd"><h3>{{ title }}</h3></div><div class="bd sm muted" style="padding-top:0">{{ desc }}</div>
+<div class="tw"><table class="t"><tr><th>Nome</th><th>Fabricante</th><th>Origem</th><th>Base</th><th>Versão</th>{% if kind == 'input' %}<th>Fontes</th>{% endif %}<th>Situação</th></tr>
+{% for p in rows if p.kind == kind %}<tr class="{{ 'muted-row' if not p.active }}"><td><a href="{{ url_for('admin.parser', pid=p.id) }}"><b>{{ p.name }}</b></a><div class="sm muted mono">{{ p.slug }}</div></td>
+<td class="sm">{{ p.vendor or '—' }}</td><td class="sm">{{ {'builtin':'embutido','studio':'Estúdio IA','manual':'editado'}[p.origin] }}</td>
+<td>{% if p.basis == 'real' %}<span class="tag g">amostra real</span>{% else %}<span class="tag">documentação · validar com dado real</span>{% endif %}</td>
+<td class="sm">{{ 'v' ~ p.current_version.version if p.current_version else 'sem versão publicada' }}</td>{% if kind == 'input' %}<td>{{ usage.get(p.id, 0) }}</td>{% endif %}
+<td><span class="st {{ 'ok' if p.active and p.current_version else 'warn' }}">{{ 'ativo' if p.active and p.current_version else ('rascunho' if not p.current_version else 'inativo') }}</span></td></tr>
+{% endfor %}</table></div></div>
+{% endfor %}
+{% endblock %}

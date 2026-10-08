@@ -1,0 +1,1376 @@
+{
+ "slug": "watchguard-epdr-siemfeeder",
+ "name": "WatchGuard EPDR · SIEMFeeder (CEF e LEEF)",
+ "vendor": "WatchGuard",
+ "product": "Endpoint Security (EPDR/EDR, ex-Panda Adaptive Defense)",
+ "description": "Eventos do SIEMFeeder (Event Importer → syslog/Kafka/pasta) nos formatos CEF:1 ou LEEF:1.0 do fabricante 'WatchGuard Technologies, Ltd.' produto 'paps'. Alertas (alertmalware, alertpup, alertexploit…) e thalert (IOA) viram Detection Finding; exec/createprocessbyWMI/scriptlaunch/createremotethread/openlsass viram Process Activity; createpe/modifype/deletepe/renamepe… viram File System Activity; socket vira Network Activity; urldownload vira HTTP Activity; loginoutops vira Authentication; o resto (registro, sistema…) fica como Base Event com tudo em 'unmapped'. Aceita chaves CEF (Item*) e LEEF (MW*), valores com espaço e separador espaço ou TAB. Feito pela documentação (SIEMFeeder Event Guide) — validar com amostra real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "re": "(?:CEF|LEEF):[\\d.]+\\|WatchGuard Technologies, Ltd\\.\\|paps\\|"
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "regex",
+   "from": "$raw",
+   "to": "hd",
+   "name": "cabeçalho CEF/LEEF",
+   "pattern": "(?P<fmt>CEF|LEEF):(?P<ver>[\\d.]+)\\|(?P<vendor>WatchGuard Technologies, Ltd\\.)\\|(?P<product>[^|]*)\\|(?P<pver>[^|]*)\\|(?P<name>[^|]*)\\|(?:(?P<name2>[^|=]*)\\|(?P<sev>\\d+)\\||)(?P<ext>.*)$"
+  },
+  {
+   "op": "set",
+   "to": "kvline",
+   "value": {
+    "template": "CEF:0|-|-|-|-|-|0|{hd.ext}"
+   }
+  },
+  {
+   "op": "cef",
+   "from": "kvline",
+   "to": "c"
+  },
+  {
+   "op": "set",
+   "to": "x",
+   "value": "c.ext"
+  },
+  {
+   "op": "set",
+   "to": "nm",
+   "value": {
+    "path": "hd.name",
+    "type": "lower"
+   }
+  },
+  {
+   "op": "set",
+   "to": "act",
+   "value": {
+    "first": [
+     "x.Action",
+     "x.ExecutionStatus",
+     "x.ToastResult"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "mwname",
+   "value": {
+    "first": [
+     {
+      "path": "x.MWName",
+      "type": "nil"
+     },
+     {
+      "path": "x.ItemName",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "mwpath",
+   "value": {
+    "first": [
+     {
+      "path": "x.MWPath",
+      "type": "nil"
+     },
+     {
+      "path": "x.ItemPath",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "user_raw",
+   "value": {
+    "first": [
+     {
+      "path": "x.User",
+      "type": "nil"
+     },
+     {
+      "template": "{x.domain}\\{x.usrName}",
+      "strict": true
+     },
+     {
+      "path": "x.usrName",
+      "type": "nil"
+     }
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "x.Date",
+     "type": "time"
+    },
+    {
+     "path": "x.devTime",
+     "type": "time"
+    },
+    {
+     "path": "x.LocalDateTime",
+     "type": "time"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "WatchGuard"
+  },
+  "metadata.product.name": {
+   "const": "Endpoint Security (EPDR)"
+  },
+  "metadata.product.version": "hd.pver",
+  "metadata.event_code": "hd.name",
+  "metadata.event_subtype": "x.Op",
+  "metadata.log_name": "hd.fmt",
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "category_uid": {
+   "const": 0
+  },
+  "category_name": {
+   "const": "Uncategorized"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "activity_name": {
+   "const": "Other"
+  },
+  "severity_id": {
+   "lookup": {
+    "first": [
+     "hd.sev",
+     "x.sev"
+    ]
+   },
+   "table": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 2,
+    "4": 2,
+    "5": 2,
+    "6": 2,
+    "7": 3,
+    "8": 4,
+    "9": 4,
+    "10": 5
+   },
+   "default": 1
+  },
+  "message": {
+   "first": [
+    {
+     "template": "{hd.name} {x.Op} {x.Path}"
+    },
+    "hd.name"
+   ]
+  },
+  "device.hostname": {
+   "first": [
+    {
+     "path": "x.MachineName",
+     "type": [
+      "strip",
+      "nil"
+     ]
+    },
+    {
+     "path": "x.HostName",
+     "type": [
+      "strip",
+      "nil"
+     ]
+    },
+    {
+     "path": "x.identHostName",
+     "type": [
+      "strip",
+      "nil"
+     ]
+    }
+   ]
+  },
+  "device.ip": {
+   "first": [
+    {
+     "path": "x.HostIp",
+     "type": "ip"
+    },
+    {
+     "path": "x.MachineIP",
+     "type": "ip"
+    },
+    {
+     "path": "x.src",
+     "type": "ip"
+    },
+    {
+     "path": "x.identSrc",
+     "type": "ip"
+    }
+   ]
+  },
+  "device.uid": "x.MUID",
+  "actor.user.name": {
+   "path": "user_raw",
+   "type": "user"
+  },
+  "actor.user.domain": {
+   "path": "user_raw",
+   "type": "domain"
+  },
+  "actor.user.full_name": "user_raw",
+  "actor.process.path": {
+   "first": [
+    {
+     "path": "x.ParentPath",
+     "type": "nil"
+    },
+    {
+     "path": "x.Path",
+     "type": "nil"
+    }
+   ]
+  },
+  "actor.process.name": {
+   "first": [
+    {
+     "path": "x.ParentPath",
+     "type": [
+      "nil",
+      "basename"
+     ]
+    },
+    {
+     "path": "x.Path",
+     "type": [
+      "nil",
+      "basename"
+     ]
+    }
+   ]
+  },
+  "actor.process.file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "first": [
+        "x.ParentHash",
+        "x.Hash"
+       ],
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "first": [
+        "x.ParentHash",
+        "x.Hash"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "unmapped.attacks": "x.TTPs"
+ },
+ "cases": [
+  {
+   "name": "alerta-com-arquivo",
+   "when": {
+    "all": [
+     {
+      "path": "nm",
+      "re": "^alert"
+     },
+     {
+      "path": "mwpath",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "finding_info.title": {
+     "first": [
+      {
+       "path": "hd.name2",
+       "type": "nil"
+      },
+      "hd.name"
+     ]
+    },
+    "finding_info.types": {
+     "list": [
+      "x.ThreatType"
+     ]
+    },
+    "finding_info.uid": "x.IOAIds",
+    "message": {
+     "first": [
+      {
+       "template": "{hd.name2}: {mwname}",
+       "strict": true
+      },
+      {
+       "template": "{hd.name2}",
+       "strict": true
+      },
+      "hd.name"
+     ]
+    },
+    "src_endpoint.ip": {
+     "path": "x.SourceIP",
+     "type": "ip"
+    },
+    "src_endpoint.hostname": {
+     "path": "x.SourceMachineName",
+     "type": "nil"
+    },
+    "disposition": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Quarantined",
+      "delete": "Deleted",
+      "disinfect": "Corrected",
+      "kill": "Blocked",
+      "block": "Blocked",
+      "suspend": "Blocked",
+      "allow": "Allowed",
+      "inform": "Detected"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 3,
+      "delete": 5,
+      "disinfect": 11,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1,
+      "inform": 15
+     },
+     "default": 15
+    },
+    "action": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Denied",
+      "delete": "Denied",
+      "disinfect": "Denied",
+      "kill": "Denied",
+      "block": "Denied",
+      "suspend": "Denied",
+      "allow": "Allowed"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 2,
+      "delete": 2,
+      "disinfect": 2,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1
+     }
+    },
+    "malware": {
+     "list": [
+      {
+       "object": {
+        "name": "mwname",
+        "classification": "x.ThreatType"
+       }
+      }
+     ]
+    },
+    "file.path": "mwpath",
+    "file.name": {
+     "path": "mwpath",
+     "type": "basename"
+    },
+    "file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "first": [
+          "x.MWHash",
+          "x.ItemHash"
+         ],
+         "type": [
+          "hash_alg"
+         ]
+        },
+        "value": {
+         "first": [
+          "x.MWHash",
+          "x.ItemHash"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "unmapped.dwell_time_secs": "x.DwellTimeSecs"
+   }
+  },
+  {
+   "name": "alerta",
+   "when": {
+    "path": "nm",
+    "re": "^alert"
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "finding_info.title": {
+     "first": [
+      {
+       "path": "hd.name2",
+       "type": "nil"
+      },
+      "hd.name"
+     ]
+    },
+    "finding_info.types": {
+     "list": [
+      "x.ThreatType"
+     ]
+    },
+    "finding_info.uid": "x.IOAIds",
+    "message": {
+     "first": [
+      {
+       "template": "{hd.name2}: {mwname}",
+       "strict": true
+      },
+      {
+       "template": "{hd.name2}",
+       "strict": true
+      },
+      "hd.name"
+     ]
+    },
+    "src_endpoint.ip": {
+     "path": "x.SourceIP",
+     "type": "ip"
+    },
+    "src_endpoint.hostname": {
+     "path": "x.SourceMachineName",
+     "type": "nil"
+    },
+    "disposition": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Quarantined",
+      "delete": "Deleted",
+      "disinfect": "Corrected",
+      "kill": "Blocked",
+      "block": "Blocked",
+      "suspend": "Blocked",
+      "allow": "Allowed",
+      "inform": "Detected"
+     },
+     "default": "Detected"
+    },
+    "disposition_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 3,
+      "delete": 5,
+      "disinfect": 11,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1,
+      "inform": 15
+     },
+     "default": 15
+    },
+    "action": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Denied",
+      "delete": "Denied",
+      "disinfect": "Denied",
+      "kill": "Denied",
+      "block": "Denied",
+      "suspend": "Denied",
+      "allow": "Allowed"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 2,
+      "delete": 2,
+      "disinfect": 2,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1
+     }
+    },
+    "unmapped.dwell_time_secs": "x.DwellTimeSecs"
+   }
+  },
+  {
+   "name": "indicador-de-ataque",
+   "when": {
+    "path": "nm",
+    "eq": "thalert"
+   },
+   "map": {
+    "class_uid": {
+     "const": 2004
+    },
+    "class_name": {
+     "const": "Detection Finding"
+    },
+    "category_uid": {
+     "const": 2
+    },
+    "category_name": {
+     "const": "Findings"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Create"
+    },
+    "finding_info.title": {
+     "first": [
+      "x.THRuleName",
+      "hd.name"
+     ]
+    },
+    "finding_info.types": {
+     "list": [
+      {
+       "const": "Indicator of Attack"
+      }
+     ]
+    },
+    "finding_info.uid": "x.IOAIds",
+    "finding_info.desc": "x.EvidenceData",
+    "message": {
+     "first": [
+      {
+       "template": "IOA: {x.THRuleName}",
+       "strict": true
+      },
+      "hd.name"
+     ]
+    },
+    "time": {
+     "first": [
+      {
+       "path": "x.AlertDate",
+       "type": "time"
+      },
+      {
+       "path": "x.TimeStamp",
+       "type": "time"
+      },
+      {
+       "path": "x.Date",
+       "type": "time"
+      },
+      {
+       "path": "x.devTime",
+       "type": "time"
+      },
+      {
+       "path": "sl.timestamp",
+       "type": "time"
+      }
+     ]
+    },
+    "unmapped.attacks": "x.Mitre"
+   }
+  },
+  {
+   "name": "processo",
+   "when": {
+    "path": "nm",
+    "in": [
+     "exec",
+     "createprocessbywmi",
+     "scriptlaunch",
+     "createremotethread",
+     "openlsass"
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 1007
+    },
+    "class_name": {
+     "const": "Process Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "lookup": "nm",
+     "table": {
+      "exec": 1,
+      "createprocessbywmi": 1,
+      "scriptlaunch": 1,
+      "createremotethread": 4,
+      "openlsass": 3
+     }
+    },
+    "activity_name": {
+     "lookup": "nm",
+     "table": {
+      "exec": "Launch",
+      "createprocessbywmi": "Launch",
+      "scriptlaunch": "Launch",
+      "createremotethread": "Inject",
+      "openlsass": "Open"
+     }
+    },
+    "actor.process.path": "x.ParentPath",
+    "actor.process.name": {
+     "path": "x.ParentPath",
+     "type": "basename"
+    },
+    "actor.process.pid": {
+     "path": "x.ParentPID",
+     "type": "int"
+    },
+    "actor.process.file.path": "x.ParentPath",
+    "actor.process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ParentHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ParentHash"
+       }
+      }
+     ]
+    },
+    "actor.process.file.company_name": "x.ParentCompany",
+    "process.path": "x.ChildPath",
+    "process.name": {
+     "path": "x.ChildPath",
+     "type": "basename"
+    },
+    "process.pid": {
+     "path": "x.ChildPID",
+     "type": "int"
+    },
+    "process.file.path": "x.ChildPath",
+    "process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ChildHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ChildHash"
+       }
+      }
+     ]
+    },
+    "process.file.company_name": "x.ChildCompany",
+    "process.cmd_line": "x.Params",
+    "message": {
+     "template": "{hd.name}: {x.ParentPath} -> {x.ChildPath}"
+    },
+    "disposition": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Quarantined",
+      "delete": "Deleted",
+      "disinfect": "Corrected",
+      "kill": "Blocked",
+      "block": "Blocked",
+      "suspend": "Blocked",
+      "allow": "Allowed",
+      "inform": "Detected"
+     }
+    },
+    "disposition_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 3,
+      "delete": 5,
+      "disinfect": 11,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1,
+      "inform": 15
+     }
+    },
+    "action": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": "Denied",
+      "delete": "Denied",
+      "disinfect": "Denied",
+      "kill": "Denied",
+      "block": "Denied",
+      "suspend": "Denied",
+      "allow": "Allowed"
+     }
+    },
+    "action_id": {
+     "lookup": {
+      "regex": "(?i)(quarantine|delete|disinfect|kill|block|suspend|allow|inform)",
+      "path": "act",
+      "type": "lower"
+     },
+     "table": {
+      "quarantine": 2,
+      "delete": 2,
+      "disinfect": 2,
+      "kill": 2,
+      "block": 2,
+      "suspend": 2,
+      "allow": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "arquivo",
+   "when": {
+    "path": "nm",
+    "in": [
+     "createpe",
+     "scriptcreation",
+     "createcmp",
+     "createdir",
+     "opencmp",
+     "monitoredopen",
+     "modifype",
+     "deletepe",
+     "renamepe"
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 1001
+    },
+    "class_name": {
+     "const": "File System Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "lookup": "nm",
+     "table": {
+      "createpe": 1,
+      "scriptcreation": 1,
+      "createcmp": 1,
+      "createdir": 1,
+      "opencmp": 2,
+      "monitoredopen": 2,
+      "modifype": 3,
+      "deletepe": 4,
+      "renamepe": 5
+     }
+    },
+    "activity_name": {
+     "lookup": "nm",
+     "table": {
+      "createpe": "Create",
+      "scriptcreation": "Create",
+      "createcmp": "Create",
+      "createdir": "Create",
+      "opencmp": "Read",
+      "monitoredopen": "Read",
+      "modifype": "Update",
+      "deletepe": "Delete",
+      "renamepe": "Rename"
+     }
+    },
+    "actor.process.path": "x.ParentPath",
+    "actor.process.name": {
+     "path": "x.ParentPath",
+     "type": "basename"
+    },
+    "actor.process.pid": {
+     "path": "x.ParentPID",
+     "type": "int"
+    },
+    "actor.process.file.path": "x.ParentPath",
+    "actor.process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ParentHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ParentHash"
+       }
+      }
+     ]
+    },
+    "actor.process.file.company_name": "x.ParentCompany",
+    "file.path": "x.ChildPath",
+    "file.name": {
+     "path": "x.ChildPath",
+     "type": "basename"
+    },
+    "file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ChildHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ChildHash"
+       }
+      }
+     ]
+    },
+    "message": {
+     "template": "{hd.name}: {x.ParentPath} -> {x.ChildPath}"
+    }
+   }
+  },
+  {
+   "name": "conexao",
+   "when": {
+    "path": "nm",
+    "eq": "socket"
+   },
+   "map": {
+    "class_uid": {
+     "const": 4001
+    },
+    "class_name": {
+     "const": "Network Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "const": 6
+    },
+    "activity_name": {
+     "const": "Traffic"
+    },
+    "src_endpoint.ip": {
+     "path": "x.LocalIP",
+     "type": "ip"
+    },
+    "src_endpoint.port": {
+     "first": [
+      "x.Localport",
+      "x.LocalPort"
+     ],
+     "type": "int"
+    },
+    "dst_endpoint.ip": {
+     "path": "x.IP",
+     "type": "ip"
+    },
+    "dst_endpoint.port": {
+     "path": "x.Port",
+     "type": "int"
+    },
+    "dst_endpoint.hostname": {
+     "path": "x.Hostname",
+     "type": "nil"
+    },
+    "connection_info.protocol_name": {
+     "path": "x.Protocol",
+     "type": "lower"
+    },
+    "connection_info.direction": {
+     "lookup": "x.Direction",
+     "table": {
+      "Up": "Outbound",
+      "Down": "Inbound",
+      "Both": "Bidirectional"
+     }
+    },
+    "actor.process.pid": {
+     "path": "x.Pid",
+     "type": "int"
+    },
+    "message": {
+     "template": "{x.Path} {x.Direction} {x.Protocol} {x.IP}:{x.Port}"
+    }
+   }
+  },
+  {
+   "name": "download",
+   "when": {
+    "all": [
+     {
+      "path": "nm",
+      "eq": "urldownload"
+     },
+     {
+      "path": "x.URL",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4002
+    },
+    "class_name": {
+     "const": "HTTP Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "activity_name": {
+     "const": "Other"
+    },
+    "actor.process.path": "x.ParentPath",
+    "actor.process.name": {
+     "path": "x.ParentPath",
+     "type": "basename"
+    },
+    "actor.process.pid": {
+     "path": "x.ParentPID",
+     "type": "int"
+    },
+    "actor.process.file.path": "x.ParentPath",
+    "actor.process.file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ParentHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ParentHash"
+       }
+      }
+     ]
+    },
+    "actor.process.file.company_name": "x.ParentCompany",
+    "http_request.url.url_string": "x.URL",
+    "http_request.url.hostname": {
+     "path": "x.URL",
+     "type": "url_host"
+    },
+    "dst_endpoint.hostname": {
+     "path": "x.URL",
+     "type": "url_host"
+    },
+    "file.path": "x.ChildPath",
+    "file.name": {
+     "path": "x.ChildPath",
+     "type": "basename"
+    },
+    "file.hashes": {
+     "list": [
+      {
+       "object": {
+        "algorithm": {
+         "path": "x.ChildHash",
+         "type": "hash_alg"
+        },
+        "value": "x.ChildHash"
+       }
+      }
+     ]
+    },
+    "message": {
+     "template": "download {x.URL} -> {x.ChildPath}"
+    }
+   }
+  },
+  {
+   "name": "login",
+   "when": {
+    "path": "nm",
+    "in": [
+     "loginoutops",
+     "loginoutsops"
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3002
+    },
+    "class_name": {
+     "const": "Authentication"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "const": 1
+    },
+    "activity_name": {
+     "const": "Logon"
+    },
+    "user.name": {
+     "path": "user_raw",
+     "type": "user"
+    },
+    "user.domain": {
+     "path": "user_raw",
+     "type": "domain"
+    },
+    "src_endpoint.ip": {
+     "path": "x.RemoteIP",
+     "type": "ip"
+    },
+    "src_endpoint.port": {
+     "path": "x.RemotePort",
+     "type": "int"
+    },
+    "src_endpoint.hostname": {
+     "path": "x.RemoteMachineName",
+     "type": "nil"
+    },
+    "status": {
+     "lookup": "x.ErrorCode",
+     "table": {
+      "0": "Success"
+     },
+     "default": "Failure"
+    },
+    "status_id": {
+     "lookup": "x.ErrorCode",
+     "table": {
+      "0": 1
+     },
+     "default": 2
+    },
+    "status_code": "x.ErrorCode",
+    "message": {
+     "template": "{hd.name} {x.ActionType} {user_raw}"
+    }
+   },
+   "unset": [
+    "actor.user"
+   ]
+  }
+ ],
+ "unmapped": [
+  "x"
+ ],
+ "unmapped_drop": [
+  "Date",
+  "devTime",
+  "devTimeFormat",
+  "sev",
+  "MachineName",
+  "HostName",
+  "identHostName",
+  "HostIp",
+  "MachineIP",
+  "src",
+  "identSrc",
+  "User",
+  "usrName",
+  "domain",
+  "MUID",
+  "Op",
+  "TTPs",
+  "Mitre",
+  "MWName",
+  "ItemName",
+  "MWPath",
+  "ItemPath",
+  "MWHash",
+  "ItemHash",
+  "THRuleName",
+  "IOAIds",
+  "EvidenceData",
+  "ParentPath",
+  "ParentHash",
+  "ParentPID",
+  "ParentCompany",
+  "ChildPath",
+  "ChildHash",
+  "ChildPID",
+  "ChildCompany",
+  "Params",
+  "SourceIP",
+  "SourceMachineName",
+  "LocalIP",
+  "Localport",
+  "IP",
+  "Port",
+  "Hostname",
+  "Protocol",
+  "Direction",
+  "URL",
+  "RemoteIP",
+  "RemotePort",
+  "RemoteMachineName",
+  "ThreatType",
+  "DwellTimeSecs",
+  "ErrorCode",
+  "Pid"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "telemetria de registro (CEF, exemplo do Event Guide)",
+   "input": "CEF:1|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|registryc|registryc|1|Date=2018-09-27 02:26:52.200188 MachineName=DESKTOP-PC MachineIP=192.168.0.11 User=NT AUTHORITY\\SYSTEM MUID=713FC2B45B429J291EB53467357AC1B7 Op=CreateExeKey Hash=C86854DF4F3AEC59D523DBAD1F5031FD DriveType=Fixed Path=SYSTEMX86|\\CompatTelRunner.exe ValidSig=true Company=Microsoft Corporation Broken=true ImageType=EXE 32 ExeType=Unknown Prevalence=Medium PrevLastDay=Low Cat=Goodware MWName= TargetPath=3|PROGRAM_FILESX86|\\Windows Defender\\MsMpeng.exe RegKey=\\REGISTRY\\MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\WicaAvPathsExpiredTemp?0",
+   "expect": {
+    "time": "2018-09-27T02:26:52.200Z",
+    "class_uid": 0,
+    "metadata.event_code": "registryc",
+    "metadata.event_subtype": "CreateExeKey",
+    "device.hostname": "DESKTOP-PC",
+    "device.ip": "192.168.0.11",
+    "device.uid": "713FC2B45B429J291EB53467357AC1B7",
+    "actor.user.name": "SYSTEM",
+    "actor.user.domain": "NT AUTHORITY",
+    "actor.process.path": "SYSTEMX86|\\CompatTelRunner.exe",
+    "actor.process.file.hashes.0.algorithm": "MD5",
+    "unmapped.ImageType": "EXE 32",
+    "unmapped.Company": "Microsoft Corporation",
+    "severity_id": 1,
+    "metadata.product.version": "02.45.00.0000"
+   }
+  },
+  {
+   "name": "telemetria de registro (LEEF, exemplo do Event Guide)",
+   "input": "LEEF:1.0|WatchGuard Technologies, Ltd.|paps|02.43.00.0000|registryc|sev=1 devTime=2016-09-22 15:25:11.000628 devTimeFormat=yyyy-MM-dd HH:mm:ss.SSS usrName=LOCAL SERVICE domain=NT AUTHORITY src=10.219.202.149 identSrc=10.219.202.149 identHostName=PXE68XXX HostName= PXE68XXX MUID=1F109BA4E0XXXX37F9995D31FXXXX319 Op=CreateExeKey Hash=C78655BC80301D76ED4FEF1C1EA40A7D DriveType=Fixed Path=SYSTEM|\\svchost.exe ValidSig= Company=Microsoft Corporation Broken=true ImageType=EXE 64 ExeType=Unknown Prevalence=High PrevLastDay=Low HeurFI=67108872 Skeptic= AVDets=0 JIDFI=3431993 1NFI=116241 JIDMW=11195630 1NMW=4308325 Class=100 Cat=Goodware MWName= TargetPath=0|pune.com RegKey=\\ REGISTRY\\ MACHINE\\ SYSTEM\\ ControlSet001\\services\\Tcpip\\Parameters?DhcpDomain",
+   "expect": {
+    "time": "2016-09-22T15:25:11.000Z",
+    "metadata.log_name": "LEEF",
+    "device.hostname": "PXE68XXX",
+    "device.ip": "10.219.202.149",
+    "actor.user.full_name": "NT AUTHORITY\\LOCAL SERVICE",
+    "actor.user.name": "LOCAL SERVICE",
+    "unmapped.1NFI": "116241",
+    "unmapped.TargetPath": "0|pune.com"
+   }
+  },
+  {
+   "name": "alerta de malware em quarentena (CEF, chaves Item*)",
+   "input": "CEF:1|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|alertmalware|Malware Detected|7|Date=2026-10-08 13:15:02.120345 HostIp=10.20.30.40 MachineName=PC-FIN-01 User=ACME\\usuario1 MUID=0A1B2C3D4E5F60718293A4B5C6D7E8F9 ThreatType=Malware ExecutionStatus=Not executed, Quarantine DwellTimeSecs=0 ItemHash=44D88612FEA8A8F36DE82E1278ABB02F ItemPath=USERPROFILE|\\Downloads\\eicar.com ItemName=EICAR-Test-File SourceIP= SourceMachineName= SourceUserName= DriveType=Fixed ServiceLevel=Blocking",
+   "expect": {
+    "class_uid": 2004,
+    "metadata.parser_case": "alerta-com-arquivo",
+    "finding_info.title": "Malware Detected",
+    "disposition": "Quarantined",
+    "disposition_id": 3,
+    "action": "Denied",
+    "severity_id": 3,
+    "malware.0.name": "EICAR-Test-File",
+    "file.path": "USERPROFILE|\\Downloads\\eicar.com",
+    "file.hashes.0.value": "44D88612FEA8A8F36DE82E1278ABB02F",
+    "device.hostname": "PC-FIN-01",
+    "device.ip": "10.20.30.40",
+    "actor.user.name": "usuario1",
+    "message": "Malware Detected: EICAR-Test-File"
+   }
+  },
+  {
+   "name": "alerta de PUP permitido (LEEF com TAB, chaves MW*)",
+   "input": "LEEF:1.0|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|alertpup|sev=8\tdevTime=2026-10-08 14:02:11.000123\tdevTimeFormat=yyyy-MM-dd HH:mm:ss.SSS\tusrName=usuario2\tdomain=ACME\tsrc=10.20.30.41\tidentSrc=10.20.30.41\tidentHostName=PC-RH-02\tMUID=0A1B2C3D4E5F60718293A4B5C6D7E8F9\tThreatType=PUP\tExecutionStatus=Executed, Allow\tDwellTimeSecs=3600\tMWHash=5D41402ABC4B2A76B9719D911017C592\tMWPath=PROGRAM_FILESX86|\\FreeBar\\freebar.exe\tMWName=PUP/FreeBar\tServiceLevel=Learning",
+   "expect": {
+    "time": "2026-10-08T14:02:11.000Z",
+    "class_uid": 2004,
+    "finding_info.title": "alertpup",
+    "severity_id": 4,
+    "disposition": "Allowed",
+    "action_id": 1,
+    "malware.0.name": "PUP/FreeBar",
+    "file.name": "freebar.exe",
+    "actor.user.name": "usuario2",
+    "actor.user.domain": "ACME",
+    "device.hostname": "PC-RH-02",
+    "unmapped.dwell_time_secs": "3600"
+   }
+  },
+  {
+   "name": "execução de processo (exec, CEF)",
+   "input": "CEF:1|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|exec|exec|1|Date=2026-10-08 15:20:00.000001 MachineName=PC-0010 MachineIP=10.20.30.50 User=ACME\\usuario3 MUID=0A1B2C3D4E5F60718293A4B5C6D7E8F9 Op=Exec ParentHash=7353F60B1739074EB17C5F4DDDEFE239 ParentDriveType=Fixed ParentPath=SYSTEM|\\cmd.exe ParentPID=4120 ParentValidSig=true ParentCompany=Microsoft Corporation ParentCat=Goodware ChildHash=04029E121A0CFA5991749937DD22A1D9 ChildDriveType=Fixed ChildPath=SYSTEM|\\WindowsPowerShell\\v1.0\\powershell.exe ChildPID=5532 ChildValidSig=true ChildCompany=Microsoft Corporation ChildCat=Goodware Params=powershell.exe -NoProfile -EncodedCommand SQBFAFgA Action=Allow WinningTech=Cloud TTPs=T1059.001",
+   "expect": {
+    "class_uid": 1007,
+    "activity_id": 1,
+    "activity_name": "Launch",
+    "process.path": "SYSTEM|\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "process.name": "powershell.exe",
+    "process.pid": 5532,
+    "process.cmd_line": "powershell.exe -NoProfile -EncodedCommand SQBFAFgA",
+    "actor.process.name": "cmd.exe",
+    "actor.process.pid": 4120,
+    "disposition": "Allowed",
+    "unmapped.attacks": "T1059.001"
+   }
+  },
+  {
+   "name": "conexão de rede (socket, CEF)",
+   "input": "CEF:1|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|socket|socket|1|Date=2026-10-08 15:21:10.500000 MachineName=PC-0010 MachineIP=10.20.30.50 User=ACME\\usuario3 MUID=0A1B2C3D4E5F60718293A4B5C6D7E8F9 Protocol=TCP Localport=51544 Direction=Up LocalIP=10.20.30.50 Hash=04029E121A0CFA5991749937DD22A1D9 DriveType=Fixed Path=SYSTEM|\\WindowsPowerShell\\v1.0\\powershell.exe Hostname=update.example.net IP=203.0.113.80 Port=443 Times=1 Pid=5532 ValidSig=true Company=Microsoft Corporation Cat=Goodware",
+   "expect": {
+    "class_uid": 4001,
+    "activity_id": 6,
+    "src_endpoint.ip": "10.20.30.50",
+    "src_endpoint.port": 51544,
+    "dst_endpoint.ip": "203.0.113.80",
+    "dst_endpoint.port": 443,
+    "dst_endpoint.hostname": "update.example.net",
+    "connection_info.protocol_name": "tcp",
+    "connection_info.direction": "Outbound",
+    "actor.process.name": "powershell.exe"
+   }
+  },
+  {
+   "name": "indicador de ataque (thalert, LEEF)",
+   "input": "LEEF:1.0|WatchGuard Technologies, Ltd.|paps|02.45.00.0000|thalert|sev=9\tdevTime=2026-10-08 16:00:00.000000\tdevTimeFormat=yyyy-MM-dd HH:mm:ss.SSS\tidentHostName=SRV-0001\tsrc=10.20.30.60\tMUID=0A1B2C3D4E5F60718293A4B5C6D7E8F9\tAlertDate=2026-10-08 15:58:41.000000\tTHRuleName=Credential dumping via LSASS access\tMitre=T1003.001|TA0006\tSeverity=1\tEvidenceData=ParentPath: SYSTEM|\\rundll32.exe ChildPath: SYSTEM|\\lsass.exe\tLastHourEvidenceCount=1\tTimes=1",
+   "expect": {
+    "time": "2026-10-08T15:58:41.000Z",
+    "class_uid": 2004,
+    "finding_info.title": "Credential dumping via LSASS access",
+    "finding_info.types": [
+     "Indicator of Attack"
+    ],
+    "severity_id": 4,
+    "device.hostname": "SRV-0001",
+    "unmapped.attacks": "T1003.001|TA0006",
+    "message": "IOA: Credential dumping via LSASS access"
+   }
+  }
+ ]
+}

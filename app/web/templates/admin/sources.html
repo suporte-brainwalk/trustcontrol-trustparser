@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "_tp.html" import syslog_box %}{% from "admin/_connector_fields.html" import connector_fields %}
+{% block title %}Fontes de entrada{% endblock %}{% block crumb %}Cadastros{% endblock %}{% block heading %}Fontes de entrada{% endblock %}
+{% block actions %}<button class="btn p" type="button" data-open-dialog="dlg-new">+ Nova fonte</button>{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px"><div class="bd">
+  <form class="row" method="get"><label class="f" style="margin:0">Tenant</label><select class="i" name="tenant_id" data-autosubmit style="max-width:320px"><option value="">Todos</option>{% for t in tenants %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('tenant_id')|int == t.id }}>{{ t.name }}</option>{% endfor %}</select></form>
+</div></div>
+<div class="card"><div class="tw"><table class="t">
+<tr><th>Fonte</th><th>Tenant</th><th>Entrada</th><th>Parser</th><th>Último evento</th><th>Recebidos</th><th>Não rec.</th><th>Situação</th></tr>
+{% for s in rows %}<tr class="{{ 'muted-row' if not s.active }}"><td><a href="{{ url_for('admin.source', sid=s.id) }}"><b>{{ s.name }}</b></a></td><td class="sm">{{ s.tenant.name }}</td>
+<td>{{ {'syslog':'Syslog','upload':'Upload','api':'API'}[s.transport] }}{% if s.transport == 'api' %}<div class="sm muted">{{ s.connector }}</div>{% endif %}</td>
+<td class="sm">{{ s.parser.name if s.parser else 'autodetectar' }}</td><td class="sm nowrap">{{ s.last_event_at|dt }}</td><td>{{ s.events_total|num }}</td><td>{{ s.unparsed_total|num }}</td>
+<td>{% if s.transport == 'api' %}<span class="st {{ {'ok':'ok','err':'err'}.get(s.last_status, 'warn') }}">{{ {'ok':'coleta ok','err':'falha','pending':'aguardando'}.get(s.last_status) }}</span>{% elif not s.active %}<span class="st warn">inativa</span>{% else %}<span class="st ok">ativa</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="empty-state">Nenhuma fonte cadastrada.</td></tr>{% endfor %}
+</table></div></div>
+<div class="card" style="margin-top:16px"><div class="hd"><h3>Configurar os equipamentos (syslog)</h3></div><div class="bd">{{ syslog_box(syslog) }}</div></div>
+
+<dialog id="dlg-new" style="max-width:820px"><form method="post" action="{{ url_for('admin.source_new') }}">{{ csrf() }}
+  <div class="hd"><h3>Nova fonte</h3><button class="x" type="button" data-close-dialog aria-label="Fechar">×</button></div>
+  <div class="bd">
+    <div class="two"><div class="fg"><label class="f">Tenant *</label><select class="i" name="tenant_id" required>{% for t in tenants %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('tenant_id')|int == t.id }}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div class="fg"><label class="f">Nome da fonte *</label><input class="i" name="name" required maxlength="160" placeholder="Ex.: Firebox matriz · Nginx API · WithSecure Elements"></div></div>
+    <div class="two"><div class="fg"><label class="f">Como os eventos chegam</label><select class="i" name="transport">{% for k, l in [('syslog','Syslog (TLS, TCP ou UDP)'),('api','Conector de API (coleta)'),('upload','Só upload de arquivo')] %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="fg"><label class="f">Parser</label><select class="i" name="parser_id"><option value="">Autodetectar pelo formato</option>{% for p in inputs if p.active %}<option value="{{ p.id }}">{{ p.vendor }} · {{ p.name }}{{ ' (validar com dado real)' if p.basis == 'docs' }}</option>{% endfor %}</select></div></div>
+    <div data-show-if="transport=syslog">
+      <div class="two"><div class="fg"><label class="f">IP de origem para liberar no firewall</label><input class="i mono" name="cidr" placeholder="200.100.50.10 (opcional; pode liberar depois)"></div>
+      <div class="fg"><label class="f">Protocolos</label><div class="row">{% for p, l in [('tls','TLS 6514'),('tcp','TCP 514'),('udp','UDP 514')] %}<label class="row" style="gap:6px"><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p == 'tls' }}> {{ l }}</label>{% endfor %}</div></div></div>
+      <div class="fg"><label class="f">Hostname (regex, opcional)</label><input class="i mono" name="match_hostname" placeholder="Use quando várias fontes enviam do mesmo IP (ex.: ^fw-matriz)"></div>
+    </div>
+    <div data-show-if="transport=api"><div class="fg"><label class="f">Conector</label><select class="i" name="connector"><option value="">— escolha —</option>{% for slug, c in connectors.items() %}<option value="{{ slug }}">{{ c.name }}</option>{% endfor %}</select></div>
+      {{ connector_fields(connectors) }}
+      <div class="fg"><label class="f">Intervalo de coleta (segundos)</label><input class="i" name="interval_s" type="number" min="60" placeholder="padrão do conector"></div></div>
+    <div class="two"><div class="fg"><label class="f">Linhas não reconhecidas</label><select class="i" name="unparsed_policy"><option value="keep">Guardar em “Não reconhecidos” (não envia)</option><option value="forward_raw">Encaminhar a linha bruta com etiqueta</option><option value="drop">Descartar</option></select></div>
+    <div class="fg"><label class="f">Avisar se ficar sem eventos por (min)</label><input class="i" type="number" name="silence_alert_minutes" min="0" value="0"><div class="sm muted">0 = não avisar</div></div></div>
+    <div class="fg"><label class="f">Observações</label><input class="i" name="note" maxlength="2000"></div>
+  </div>
+  <div class="ft"><button class="btn o" type="button" data-close-dialog>Cancelar</button><button class="btn p" type="submit">Criar fonte</button></div>
+</form></dialog>
+{% endblock %}

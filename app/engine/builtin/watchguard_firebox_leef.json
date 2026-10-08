@@ -1,0 +1,810 @@
+{
+ "slug": "watchguard-firebox-leef",
+ "name": "WatchGuard Firebox · IBM LEEF (tráfego, proxy e eventos)",
+ "vendor": "WatchGuard",
+ "product": "Firebox (Fireware OS)",
+ "description": "Log do Firebox no formato IBM LEEF 1.0 (opção do Firebox para QRadar/Sentinel): LEEF:1.0|WatchGuard|XTM ou Firebox|versão|msg_id sem hífen|chave=valor separados por TAB. Aceita a linha com cabeçalho syslog, sem o prefixo 'LEEF:' (comido pelo relay) e com TAB escapado pelo rsyslog (#011). Tráfego vira Network Activity, proxy HTTP vira HTTP Activity, logins (3E00/1100/2500) viram Authentication e os demais eventos viram Event Log Activity. Feito pela documentação e por amostras públicas de terceiros — validar com amostra real.",
+ "basis": "docs",
+ "priority": 100,
+ "detect": {
+  "re": "(?:^|[\\s:>])1\\.0\\|WatchGuard\\|(?:XTM|Firebox)\\|"
+ },
+ "steps": [
+  {
+   "op": "syslog",
+   "from": "$raw",
+   "to": "sl",
+   "optional": true
+  },
+  {
+   "op": "regex",
+   "from": "$raw",
+   "to": "r",
+   "name": "cabeçalho LEEF",
+   "pattern": "(?:LEEF:)?(?P<core>1\\.0\\|WatchGuard\\|(?:XTM|Firebox)\\|.*)$"
+  },
+  {
+   "op": "set",
+   "to": "ll",
+   "value": {
+    "template": "LEEF:{r.core}",
+    "type": "replace:#011:\t"
+   }
+  },
+  {
+   "op": "leef",
+   "from": "ll",
+   "to": "lf"
+  },
+  {
+   "op": "set",
+   "to": "t",
+   "value": {
+    "object": {
+     "disp": "lf.ext.disp",
+     "src_ip": "lf.ext.src",
+     "src_port": "lf.ext.srcPort",
+     "dst_ip": "lf.ext.dst",
+     "dst_port": "lf.ext.dstPort",
+     "proto": "lf.ext.proto",
+     "in_if": "lf.ext.in_if",
+     "out_if": "lf.ext.out_if",
+     "policy": "lf.ext.policy"
+    }
+   }
+  },
+  {
+   "op": "set",
+   "to": "mid",
+   "value": {
+    "first": [
+     "lf.event_id"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "c1",
+   "value": {
+    "regex": "^([0-9A-Fa-f]{4})-?[0-9A-Fa-f]{4}$",
+    "path": "mid",
+    "type": "upper"
+   }
+  },
+  {
+   "op": "set",
+   "to": "c2",
+   "value": {
+    "regex": "^[0-9A-Fa-f]{4}-?([0-9A-Fa-f]{4})$",
+    "path": "mid",
+    "type": "upper"
+   }
+  },
+  {
+   "op": "set",
+   "to": "code",
+   "value": {
+    "template": "{c1}-{c2}",
+    "strict": true
+   }
+  },
+  {
+   "op": "regex",
+   "from": "lf.ext.msg",
+   "to": "au",
+   "optional": true,
+   "when": {
+    "path": "lf.ext.disp",
+    "exists": false
+   },
+   "pattern": "user \\[?(?P<user>[^\\s\\]]+?)(?:@(?P<auth_server>[^@\\s\\]]+))?\\]? from (?P<ip>[0-9A-Fa-f.:]+[0-9A-Fa-f])(?:.*?(?:rejected, |reason[=:] ?)(?P<reason>.+))?"
+  },
+  {
+   "op": "set",
+   "to": "sev_virus",
+   "value": {
+    "const": 4
+   },
+   "when": {
+    "path": "lf.ext.virus",
+    "exists": true
+   }
+  },
+  {
+   "op": "set",
+   "to": "http_host",
+   "value": {
+    "first": [
+     "lf.ext.dstname",
+     "lf.ext.sni",
+     "lf.ext.host"
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "http_path",
+   "value": {
+    "first": [
+     {
+      "path": "lf.ext.arg",
+      "type": "nil"
+     },
+     {
+      "path": "lf.ext.path",
+      "type": "nil"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "scheme",
+   "value": {
+    "first": [
+     {
+      "lookup": "c1",
+      "table": {
+       "2CFF": "https"
+      }
+     },
+     {
+      "lookup": "t.dst_port",
+      "table": {
+       "443": "https"
+      }
+     },
+     {
+      "const": "http"
+     }
+    ]
+   }
+  },
+  {
+   "op": "set",
+   "to": "url",
+   "value": {
+    "first": [
+     {
+      "template": "{scheme}://{http_host}{http_path}",
+      "strict": true
+     },
+     {
+      "template": "{scheme}://{http_host}/",
+      "strict": true
+     }
+    ]
+   }
+  }
+ ],
+ "map": {
+  "time": {
+   "first": [
+    {
+     "path": "lf.ext.devTime",
+     "type": "strptime:%b %d %Y %H:%M:%S %z"
+    },
+    {
+     "path": "sl.timestamp",
+     "type": "time"
+    }
+   ]
+  },
+  "metadata.product.vendor_name": {
+   "const": "WatchGuard"
+  },
+  "metadata.product.name": {
+   "const": "Firebox"
+  },
+  "metadata.product.version": "lf.product_version",
+  "metadata.event_code": "code",
+  "class_uid": {
+   "const": 0
+  },
+  "class_name": {
+   "const": "Base Event"
+  },
+  "category_uid": {
+   "const": 0
+  },
+  "category_name": {
+   "const": "Uncategorized"
+  },
+  "activity_id": {
+   "const": 99
+  },
+  "activity_name": {
+   "const": "Other"
+  },
+  "severity_id": {
+   "first": [
+    {
+     "lookup": "lf.ext.severity",
+     "table": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5
+     }
+    },
+    "sev_virus",
+    {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": 1,
+      "Deny": 2
+     }
+    },
+    {
+     "const": 1
+    }
+   ]
+  },
+  "message": {
+   "first": [
+    "lf.ext.msg",
+    {
+     "template": "{t.disp} {t.proto} {t.src_ip}:{t.src_port} -> {t.dst_ip}:{t.dst_port} ({t.policy})",
+     "strict": true
+    },
+    {
+     "template": "{t.disp} {t.src_ip}:{t.src_port} -> {t.dst_ip}:{t.dst_port} ({t.policy})",
+     "strict": true
+    }
+   ]
+  },
+  "device.hostname": {
+   "first": [
+    "lf.ext.host_name",
+    "lf.ext.sys_name",
+    "sl.hostname"
+   ]
+  },
+  "device.uid": "lf.ext.serial",
+  "disposition": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": "Allowed",
+    "Deny": "Blocked"
+   }
+  },
+  "disposition_id": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": 1,
+    "Deny": 2
+   }
+  },
+  "action": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": "Allowed",
+    "Deny": "Denied"
+   }
+  },
+  "action_id": {
+   "lookup": "t.disp",
+   "table": {
+    "Allow": 1,
+    "Deny": 2
+   }
+  },
+  "src_endpoint.ip": {
+   "path": "t.src_ip",
+   "type": "ip"
+  },
+  "src_endpoint.port": {
+   "path": "t.src_port",
+   "type": "int"
+  },
+  "src_endpoint.interface_name": "t.in_if",
+  "src_endpoint.location.country": "lf.ext.geo_src",
+  "dst_endpoint.ip": {
+   "path": "t.dst_ip",
+   "type": "ip"
+  },
+  "dst_endpoint.port": {
+   "path": "t.dst_port",
+   "type": "int"
+  },
+  "dst_endpoint.interface_name": "t.out_if",
+  "dst_endpoint.location.country": "lf.ext.geo_dst",
+  "dst_endpoint.hostname": "http_host",
+  "connection_info.protocol_name": {
+   "path": "t.proto",
+   "type": "lower"
+  },
+  "traffic.bytes_out": {
+   "path": "lf.ext.sent_bytes",
+   "type": "int"
+  },
+  "traffic.bytes_in": {
+   "path": "lf.ext.rcvd_bytes",
+   "type": "int"
+  },
+  "traffic.packets_out": {
+   "path": "lf.ext.sent_pkts",
+   "type": "int"
+  },
+  "traffic.packets_in": {
+   "path": "lf.ext.rcvd_pkts",
+   "type": "int"
+  },
+  "policy.name": {
+   "first": [
+    "t.policy",
+    "lf.ext.policy"
+   ]
+  },
+  "rule.name": {
+   "first": [
+    "lf.ext.proxy_act",
+    "lf.ext.rule_name"
+   ]
+  },
+  "actor.user.name": {
+   "path": "lf.ext.src_user",
+   "type": "user"
+  },
+  "actor.user.full_name": "lf.ext.src_user",
+  "finding_info.title": {
+   "first": [
+    "lf.ext.signature_name",
+    "lf.ext.virus"
+   ]
+  },
+  "finding_info.uid": "lf.ext.signature_id",
+  "malware": {
+   "list": [
+    {
+     "object": {
+      "name": {
+       "path": "lf.ext.virus"
+      }
+     }
+    }
+   ]
+  },
+  "file.name": {
+   "first": [
+    "lf.ext.filename"
+   ]
+  },
+  "file.hashes": {
+   "list": [
+    {
+     "object": {
+      "algorithm": {
+       "path": "lf.ext.md5",
+       "type": [
+        "hash_alg"
+       ]
+      },
+      "value": {
+       "path": "lf.ext.md5"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "cases": [
+  {
+   "name": "trafego-fim",
+   "when": {
+    "all": [
+     {
+      "path": "t.disp",
+      "exists": true
+     },
+     {
+      "path": "code",
+      "in": [
+       "3000-0151",
+       "3000-0176"
+      ]
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4001
+    },
+    "class_name": {
+     "const": "Network Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "const": 2
+    },
+    "activity_name": {
+     "const": "Close"
+    }
+   }
+  },
+  {
+   "name": "proxy-http",
+   "when": {
+    "all": [
+     {
+      "path": "t.disp",
+      "exists": true
+     },
+     {
+      "path": "http_host",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 4002
+    },
+    "class_name": {
+     "const": "HTTP Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "lookup": "lf.ext.op",
+     "table": {
+      "CONNECT": 1,
+      "DELETE": 2,
+      "GET": 3,
+      "HEAD": 4,
+      "OPTIONS": 5,
+      "POST": 6,
+      "PUT": 7,
+      "TRACE": 8,
+      "PATCH": 9
+     },
+     "default": 99
+    },
+    "activity_name": {
+     "first": [
+      {
+       "path": "lf.ext.op",
+       "type": "upper"
+      },
+      {
+       "const": "Other"
+      }
+     ]
+    },
+    "http_request.http_method": {
+     "path": "lf.ext.op",
+     "type": "upper"
+    },
+    "http_request.url.url_string": "url",
+    "http_request.url.hostname": "http_host",
+    "http_request.url.path": "http_path",
+    "http_request.url.scheme": "scheme",
+    "http_request.url.categories": {
+     "path": "lf.ext.cats",
+     "type": "split:,"
+    },
+    "tls.sni": "lf.ext.sni"
+   }
+  },
+  {
+   "name": "trafego",
+   "when": {
+    "path": "t.disp",
+    "exists": true
+   },
+   "map": {
+    "class_uid": {
+     "const": 4001
+    },
+    "class_name": {
+     "const": "Network Activity"
+    },
+    "category_uid": {
+     "const": 4
+    },
+    "category_name": {
+     "const": "Network Activity"
+    },
+    "activity_id": {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": 1,
+      "Deny": 5
+     }
+    },
+    "activity_name": {
+     "lookup": "t.disp",
+     "table": {
+      "Allow": "Open",
+      "Deny": "Refuse"
+     }
+    }
+   }
+  },
+  {
+   "name": "autenticacao",
+   "when": {
+    "all": [
+     {
+      "path": "code",
+      "in": [
+       "3E00-0002",
+       "1100-0004",
+       "2500-0000",
+       "3E00-0003",
+       "1100-0005",
+       "5000-0001",
+       "3E00-0004",
+       "2500-0001"
+      ]
+     },
+     {
+      "path": "au.user",
+      "exists": true
+     }
+    ]
+   },
+   "map": {
+    "class_uid": {
+     "const": 3002
+    },
+    "class_name": {
+     "const": "Authentication"
+    },
+    "category_uid": {
+     "const": 3
+    },
+    "category_name": {
+     "const": "Identity & Access Management"
+    },
+    "activity_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": 1,
+      "1100-0004": 1,
+      "2500-0000": 1,
+      "3E00-0003": 1,
+      "1100-0005": 1,
+      "5000-0001": 1,
+      "3E00-0004": 2,
+      "2500-0001": 2
+     }
+    },
+    "activity_name": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": "Logon",
+      "1100-0004": "Logon",
+      "2500-0000": "Logon",
+      "3E00-0003": "Logon",
+      "1100-0005": "Logon",
+      "5000-0001": "Logon",
+      "3E00-0004": "Logoff",
+      "2500-0001": "Logoff"
+     }
+    },
+    "status": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": "Success",
+      "1100-0004": "Success",
+      "2500-0000": "Success",
+      "3E00-0004": "Success",
+      "2500-0001": "Success",
+      "3E00-0003": "Failure",
+      "1100-0005": "Failure",
+      "5000-0001": "Failure"
+     }
+    },
+    "status_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0002": 1,
+      "1100-0004": 1,
+      "2500-0000": 1,
+      "3E00-0004": 1,
+      "2500-0001": 1,
+      "3E00-0003": 2,
+      "1100-0005": 2,
+      "5000-0001": 2
+     }
+    },
+    "severity_id": {
+     "lookup": "code",
+     "table": {
+      "3E00-0003": 2,
+      "1100-0005": 2,
+      "5000-0001": 2
+     },
+     "default": 1
+    },
+    "status_detail": "au.reason",
+    "user.name": "au.user",
+    "auth_protocol": "au.auth_server",
+    "src_endpoint.ip": {
+     "path": "au.ip",
+     "type": "ip"
+    }
+   }
+  },
+  {
+   "name": "evento",
+   "when": {
+    "path": "code",
+    "exists": true
+   },
+   "map": {
+    "class_uid": {
+     "const": 1008
+    },
+    "class_name": {
+     "const": "Event Log Activity"
+    },
+    "category_uid": {
+     "const": 1
+    },
+    "category_name": {
+     "const": "System Activity"
+    },
+    "activity_id": {
+     "const": 99
+    },
+    "activity_name": {
+     "const": "Other"
+    }
+   }
+  }
+ ],
+ "unmapped": [
+  "lf.ext"
+ ],
+ "unmapped_drop": [
+  "devTime",
+  "devTimeFormat",
+  "host_name",
+  "sys_name",
+  "serial",
+  "disp",
+  "src",
+  "srcPort",
+  "dst",
+  "dstPort",
+  "proto",
+  "in_if",
+  "out_if",
+  "policy",
+  "msg",
+  "proxy_act",
+  "rule_name",
+  "cats",
+  "op",
+  "dstname",
+  "arg",
+  "host",
+  "path",
+  "sni",
+  "signature_name",
+  "signature_id",
+  "severity",
+  "virus",
+  "md5",
+  "filename",
+  "sent_bytes",
+  "rcvd_bytes",
+  "sent_pkts",
+  "rcvd_pkts",
+  "src_user",
+  "geo_src",
+  "geo_dst"
+ ],
+ "require": [
+  "time",
+  "metadata.event_code"
+ ],
+ "tests": [
+  {
+   "name": "fim de conexão DNS (30000151) com cabeçalho syslog",
+   "input": "<134>2026-10-08T12:00:00Z FBX-01 LEEF:1.0|WatchGuard|XTM|12.8.2.B666661|30000151|serial=000000000000\tpolicy=DNS-srv-00\tdisp=Allow\tin_if=Lab\tout_if=WAN2\tgeo_dst=USA\tsrc=192.168.91.11\tsrcPort=52075\tsrcPostNAT=192.168.0.20\tsrcPostNATPORT=58586\tdst=8.8.4.4\tdstPort=53\tsrc_user=admin@test.org\tduration=38\tsent_bytes=69\trcvd_bytes=185",
+   "expect": {
+    "time": "2026-10-08T12:00:00.000Z",
+    "class_uid": 4001,
+    "activity_id": 2,
+    "metadata.event_code": "3000-0151",
+    "src_endpoint.ip": "192.168.91.11",
+    "dst_endpoint.port": 53,
+    "actor.user.name": "admin",
+    "traffic.bytes_in": 185,
+    "policy.name": "DNS-srv-00",
+    "unmapped.srcPostNAT": "192.168.0.20",
+    "metadata.product.version": "12.8.2.B666661",
+    "device.hostname": "FBX-01"
+   }
+  },
+  {
+   "name": "pacote externo negado (30000148)",
+   "input": "<134>2026-10-08T12:00:00Z FBX-01 LEEF:1.0|WatchGuard|XTM|12.8.2.B666661|30000148|serial=000000000000\tpolicy=Unhandled External Packet-00\tdisp=Deny\tin_if=WAN1\tout_if=Firebox\tgeo_src=CHN\tsrc=1.2.3.4\tsrcPort=35186\tdst=192.168.1.2\tdstPort=6379\tip_len=60\tip_TTL=49\tproto=tcp\ttcp_offset=10\ttcp_flag=S\ttcp_seq=2630166840\ttcp_window=4210",
+   "expect": {
+    "class_uid": 4001,
+    "activity_id": 5,
+    "disposition": "Blocked",
+    "src_endpoint.location.country": "CHN",
+    "dst_endpoint.port": 6379,
+    "connection_info.protocol_name": "tcp",
+    "severity_id": 2
+   }
+  },
+  {
+   "name": "data no próprio LEEF (devTime) sem cabeçalho syslog",
+   "input": "LEEF:1.0|WatchGuard|XTM|12.8.2.B666661|30000148|sys_name=SystemName\tdevTimeFormat=MMM dd yyyy HH:mm:ss Z\tdevTime=Sep 23 2022 09:51:24 +0200\tpolicy=Any From Firebox-00\tdisp=Allow\tin_if=Firebox\tout_if=LAN\tsrc=10.10.1.1\tsrcPort=46416\tdst=10.10.1.2\tdstPort=443\tip_len=52\tip_TTL=64\tproto=tcp\ttcp_offset=8\ttcp_flag=S\ttcp_seq=4071455733\ttcp_window=4210",
+   "expect": {
+    "time": "2022-09-23T07:51:24.000Z",
+    "class_uid": 4001,
+    "activity_id": 1,
+    "device.hostname": "SystemName",
+    "dst_endpoint.port": 443
+   }
+  },
+  {
+   "name": "WebBlocker negou categoria (1AFF0021)",
+   "input": "<134>2026-10-08T12:00:00Z FBX-01 LEEF:1.0|WatchGuard|XTM|12.8.2.B666661|1AFF0021|serial=000000000000\tpolicy=HTTPS-LAN-00\tdisp=Deny\tin_if=LAN\tout_if=WAN2\tgeo_dst=USA\tsrc=10.10.1.22\tsrcPort=52803\tdst=5.6.7.8\tdstPort=443\tproto=tcp\tproxy_act=HTTP-Client-LAN\tcats=Sex\top=GET\tdstname=www.forbidden.com\targ=/\taction=www.forbidden.com\tmsg=ProxyDeny: HTTP Request categories",
+   "expect": {
+    "class_uid": 4002,
+    "metadata.event_code": "1AFF-0021",
+    "disposition": "Blocked",
+    "http_request.url.url_string": "https://www.forbidden.com/",
+    "http_request.url.categories": [
+     "Sex"
+    ],
+    "message": "ProxyDeny: HTTP Request categories"
+   }
+  },
+  {
+   "name": "sem prefixo 'LEEF:' (comido pelo relay) e duração com unidade",
+   "input": "<134>2026-10-08T12:00:00Z FBX-01 1.0|WatchGuard|XTM|12.12.B733447|30000151|host_name=FIREBOX-HOST\tserial=000000000000\tpolicy=Outgoing-00\tdisp=Allow\tin_if=LAN\tout_if=INTERNET\tgeo_dst=GBR\tsrc=10.10.10.10\tsrcPort=31232\tsrcPostNAT=203.0.113.10\tdst=198.51.100.20\tdstPort=8814\tsrc_user=user@example.local\tflags=Dd\tduration=42 seconds\tsent_pkts=1\trcvd_pkts=1\tsent_bytes=218\trcvd_bytes=204\t",
+   "expect": {
+    "class_uid": 4001,
+    "device.hostname": "FIREBOX-HOST",
+    "dst_endpoint.ip": "198.51.100.20",
+    "unmapped.duration": "42 seconds",
+    "traffic.packets_out": 1
+   }
+  },
+  {
+   "name": "autenticação SSLVPN rejeitada (11000005, TAB escapado #011)",
+   "input": "<134>2026-10-08T15:00:00-03:00 Member2 LEEF:1.0|WatchGuard|XTM|12.10.2.B692269|11000005|host_name=Member2#011serial=AAAAAAAAAAAAA#011msg=Authentication of SSLVPN user [john.doe@example.org@radius] from 1.2.3.4 was rejected, Recv timeout",
+   "expect": {
+    "time": "2026-10-08T18:00:00.000Z",
+    "class_uid": 3002,
+    "activity_id": 1,
+    "status": "Failure",
+    "user.name": "john.doe@example.org",
+    "auth_protocol": "radius",
+    "src_endpoint.ip": "1.2.3.4",
+    "status_detail": "Recv timeout",
+    "device.hostname": "Member2",
+    "metadata.event_code": "1100-0005"
+   }
+  },
+  {
+   "name": "login SSL VPN aceito (3E000002)",
+   "input": "<134>2026-10-08T15:01:00-03:00 Member2 LEEF:1.0|WatchGuard|XTM|12.10.3.B694994|3E000002|host_name=Member2#011serial=AAAAAAAAAAAAA#011msg=SSL VPN user john.doe@example.org@radius from 1.2.3.4 logged in assigned virtual IP is 4.3.2.1",
+   "expect": {
+    "class_uid": 3002,
+    "status": "Success",
+    "user.name": "john.doe@example.org",
+    "src_endpoint.ip": "1.2.3.4",
+    "device.uid": "AAAAAAAAAAAAA"
+   }
+  }
+ ]
+}
