@@ -18,7 +18,7 @@ import httpx
 from sqlalchemy import select
 
 from ..db import Session, utcnow
-from ..models import Event, Parser, ParserVersion, StudioJob
+from ..models import Parser, ParserVersion, StudioJob
 from ..services import ai, catalog, ops_alerts
 from . import dsl, formats
 from .mask import Masker
@@ -122,17 +122,22 @@ def _output_prompt(job: StudioJob, docs: str, events: list[dict]) -> list[dict]:
     return [{"role": "system", "content": SYSTEM_OUTPUT}, {"role": "user", "content": "\n\n".join(parts)}]
 
 
-def _sample_events() -> list[dict]:
-    rows = Session.execute(select(Event.event).where(Event.status == "parsed").order_by(Event.id.desc()).limit(200)).scalars().all()
+def _sample_events(masker: Masker | None = None) -> list[dict]:
+    """Exemplos de eventos canônicos para a IA desenhar uma saída. NUNCA vêm do buffer (dados de clientes): são gerados a
+    partir das linhas de teste anonimizadas dos parsers embutidos — uma classe OCSF de cada."""
     seen, out = set(), []
-    for ev in rows:
-        k = (ev or {}).get("class_uid")
-        if k not in seen:
-            seen.add(k)
-            out.append(ev)
-    if not out:
-        out = [catalog._sample_event()]
-    return out[:8]
+    for doc in catalog.builtin_docs():
+        spec, tests = catalog.split_spec(doc)
+        for t in tests:
+            try:
+                ev = dsl.parse(spec, t.get("input", ""))
+            except (dsl.ParseError, dsl.SpecError):
+                continue
+            k = ev.get("class_uid")
+            if k not in seen:
+                seen.add(k)
+                out.append(ev)
+    return out[:8] or [catalog._sample_event()]
 
 
 def _log(job: StudioJob, msg: str):

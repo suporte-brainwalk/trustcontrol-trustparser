@@ -337,3 +337,16 @@ def test_wazuh_pack_downloads(client, fx, app, login):
     for n in ("trustparser_decoders.xml", "trustparser_rules.xml", "LEIA-ME.md"):
         assert client.get(f"/admin/destinos/wazuh/{n}").status_code == 200, n
     assert client.get("/admin/destinos/wazuh/..%2Fetc%2Fpasswd").status_code == 404
+
+
+def test_studio_output_examples_never_use_buffer_data(f):
+    """Exemplos enviados à IA para desenhar saídas são sintéticos — nada do buffer (dados de clientes)."""
+    from app.db import utcnow
+    from app.engine import studio
+    from app.models import Event
+    t = f.tenant("A")
+    f.s().add(Event(tenant_id=t.id, received_at=utcnow(), raw="x", status="parsed",
+                    event={"time": "2026-10-08T00:00:00.000Z", "class_uid": 9999, "message": "SEGREDO-DO-CLIENTE"}))
+    f.s().commit()
+    import json
+    assert "SEGREDO-DO-CLIENTE" not in json.dumps(studio._sample_events())
