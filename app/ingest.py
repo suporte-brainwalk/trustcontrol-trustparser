@@ -19,7 +19,7 @@ import signal
 import ssl
 import threading
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
@@ -29,7 +29,7 @@ from .engine import syslog as sl
 log = logging.getLogger("ingest")
 MAX_MSG = int(os.getenv("SYSLOG_MAX_MSG", str(256 * 1024)))
 MAX_CONN_PER_IP = int(os.getenv("SYSLOG_MAX_CONN_PER_IP", "64"))
-RATE_PER_IP = int(os.getenv("SYSLOG_RATE_PER_IP", "20000"))  # mensagens/minuto por IP
+RATE_PER_IP = int(os.getenv("SYSLOG_RATE_PER_IP", "600000"))  # mensagens/minuto por IP (10 mil EPS)
 CERT = os.getenv("SYSLOG_TLS_CERT", "/certs/fullchain.pem")
 KEY = os.getenv("SYSLOG_TLS_KEY", "/certs/key.pem")
 RE_OCTET = re.compile(rb"^(\d{1,6}) ")
@@ -131,7 +131,7 @@ class Ingest:
         self.router, self.writer = Router(engine), Writer(engine)
         self.engine = engine
         self.conns = defaultdict(int)
-        self.rate = defaultdict(lambda: deque())
+        self.rate: dict = {}  # ip -> [início da janela de 60 s, contagem]
         self.stats = defaultdict(int)
         self.rejected: dict = {}
 
@@ -142,11 +142,11 @@ class Ingest:
             data = data[:MAX_MSG]
             self.stats["truncated"] += 1
         now = time.monotonic()
-        dq = self.rate[ip]
-        dq.append(now)
-        while dq and now - dq[0] > 60:
-            dq.popleft()
-        if len(dq) > RATE_PER_IP:
+        w = self.rate.get(ip)
+        if w is None or now - w[0] >= 60:
+            w = self.rate[ip] = [now, 0]
+        w[1] += 1
+        if w[1] > RATE_PER_IP:
             self.stats["rate_limited"] += 1
             return
         line = data.decode("utf-8", "replace").rstrip("\r\n\x00")
