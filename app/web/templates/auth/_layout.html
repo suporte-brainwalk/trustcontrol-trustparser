@@ -8,16 +8,16 @@
 <link rel="icon" href="{{ url_for('static', filename='brand/favicon.png') }}">
 <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=11">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=13">
 </head>
 <body>
 <div class="login">
   <div class="login-hero">
-    <div class="hero-kicker">TRUST SOC 360</div>
+    <div class="hero-kicker">TRUST PARSER</div>
     <div>
-      <h1>Alertas de vulnerabilidade só do que existe no seu parque.</h1>
-      <p>Monitoramos os boletins oficiais dos fabricantes a cada minuto e avisamos por e-mail, na hora, quem realmente usa a tecnologia afetada.</p>
-      <div class="hero-pills"><span>⏱ Varredura a cada minuto</span><span>🎯 Correlação por inventário</span><span>🔒 Tenants isolados</span></div>
+      <h1>Todo log de segurança, no formato que o seu SIEM entende.</h1>
+      <p>Recebemos por syslog seguro, API ou arquivo, normalizamos cada evento de forma determinística e entregamos já parseado ao Google SecOps, Wazuh, QRadar ou para download.</p>
+      <div class="hero-pills"><span>📥 Syslog TLS · API · upload</span><span>⚙ Parsing determinístico</span><span>✨ Novos formatos com IA</span><span>🔒 Tenants isolados</span></div>
     </div>
     <div class="hero-foot">Trust Control · Cibersegurança (MSSP / MDR)</div>
   </div>
@@ -27,6 +27,6 @@
     {% block box %}{% endblock %}
   </div></div>
 </div>
-<script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=6"></script>
 </body>
 </html>
