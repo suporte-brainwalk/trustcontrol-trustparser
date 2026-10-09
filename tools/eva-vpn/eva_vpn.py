@@ -159,6 +159,9 @@ def send(to: list[str], cc: list[str], subject: str, text: str, st: dict, in_rep
         s.send_message(m, from_addr=ADDR, to_addrs=rcpts)
     st.setdefault("thread_ids", []).append(m["Message-ID"])
     log.info("enviado %s para %s: %s", m["Message-ID"], rcpts, subject)
+    os.makedirs("/var/lib/eva-vpn/enviados", exist_ok=True)
+    with open(f"/var/lib/eva-vpn/enviados/{datetime.now():%Y%m%d-%H%M%S}.txt", "w") as f:  # cópia de cada envio (auditoria)
+        f.write(f"Para: {rcpts}\nAssunto: {subject}\nMessage-ID: {m['Message-ID']}\n\n{text}")
     return m["Message-ID"]
 
 
@@ -453,6 +456,9 @@ def facts_for_reply(st: dict, notes: list[str], ex: dict) -> str:
         "perguntas_deles": ex.get("perguntas_deles", []), "fora_do_escopo": ex.get("fora_do_escopo", []),
         "parametros_do_tunel": "IKEv2; DH 19; AES-256-GCM (ou AES-256-CBC + SHA-256); vidas 28800 s / 3600 s com PFS DH 19; IKE ID por IP "
                                "(46.224.130.58 ↔ 177.19.132.193); baseada em rota com seletores 0.0.0.0/0; DPD 30 s; túnel 169.254.99.17 (Trust) / 169.254.99.18 (nosso)",
+        "ip_publico_brainwalk": f"{OUR_PEER} — IP público fixo (IPv4) do nosso servidor: é o peer da VPN e também o IP de saída para a "
+                                "internet de TODOS os nossos serviços (Trust Parser, TrustRadar e Trust Labs). Não há outro IP externo. "
+                                f"Pela VPN, a origem dos nossos serviços é {VIP['snat']}.",
         "nossos_ips_na_vpn": {"Trust Parser (HTTPS 443, syslog 6514 TLS e 514 TCP/UDP)": VIP["parser"], "TrustRadar (HTTPS 443)": VIP["radar"],
                               "Trust Labs (HTTPS 443)": VIP["labs"], "origem dos nossos serviços": VIP["snat"]},
         "ja_temos": {"redes_trust": p.get("redes_trust", []), "destinos": p.get("destinos", []), "baseada_em_rota": p.get("rota"),
