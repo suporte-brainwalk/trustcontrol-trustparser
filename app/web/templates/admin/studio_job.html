@@ -5,7 +5,7 @@
 {% if job.status == 'failed' %}<div class="testmode alert-err">⚠ <div><b>Falhou:</b> {{ job.error }}</div></div>{% endif %}
 <div class="grid g2">
 <div class="card"><div class="hd"><h3>Resultado</h3></div><div class="bd">
-  <div class="sm">Tipo: <b>{{ {'input':'novo parser de entrada','output':'novo formato de saída','fix':'ajuste de parser'}[job.kind] }}</b> · pedido por {{ job.requested_by }} em {{ job.created_at|dt }}</div>
+  <div class="sm">Tipo: <b>{{ {'input':'novo parser de entrada','output':'novo formato de saída','fix':'ajuste de parser','secops':'parser para o Google SecOps (CBN)'}[job.kind] }}</b> · pedido por {{ job.requested_by }} em {{ job.created_at|dt }}</div>
   {% if p %}<div class="sm">Parser: <a href="{{ url_for('admin.parser', pid=p.id, v=v.id if v else None) }}">{{ p.name }}</a> {% if v %}· versão {{ v.version }} ({{ v.status }}){% endif %}</div>{% endif %}
   {% set cov = job.report.coverage if job.report.coverage is defined else none %}
   {% if cov %}<div style="margin-top:10px"><b>Cobertura nas amostras: {{ cov.pct }}%</b> ({{ cov.parsed }}/{{ cov.total }}){% for k, n in (cov.cases or {}).items() %} <span class="tag">{{ k }}: {{ n }}</span>{% endfor %}</div>
@@ -23,5 +23,6 @@
 {% for ex in cov.examples[:6] %}<details class="fieldset" {{ 'open' if loop.first }}><summary class="sm"><b>{{ ex.event.metadata.parser_case if ex.event.metadata and ex.event.metadata.parser_case else ex.event.class_name }}</b> · UDM {{ ex.udm_type }}</summary><pre class="code">{{ ex.input }}</pre><pre class="code">{{ ex.event|tojson_pretty }}</pre></details>{% endfor %}
 {% for f in cov.failed or [] %}<div class="sm">✗ {{ f.error }}<pre class="code">{{ f.input }}</pre></div>{% endfor %}</div></div>{% endif %}
 {% if job.report.rendered is defined %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Exemplos de saída</h3></div><div class="bd">{% for r in job.report.rendered %}<pre class="code">{{ r }}</pre>{% endfor %}{% for e in job.report.errors %}<div class="sm">✗ {{ e }}</div>{% endfor %}</div></div>{% endif %}
-{% if spec_json %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Spec gerado</h3></div><div class="bd"><pre class="code tall">{{ spec_json }}</pre></div></div>{% endif %}
+{% if job.report.cbn_preview is defined %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Parser CBN gerado</h3><span class="sp"></span><span class="sm muted">tipo de log sugerido: {{ job.report.log_type or '—' }}</span></div><div class="bd">{% for c in job.report.checks %}<div class="sm">⚠ {{ c }}</div>{% endfor %}<pre class="code tall">{{ job.report.cbn_preview }}</pre><div class="note">Depois de publicado, o arquivo fica para download na página do parser de entrada (botão “Parser para o Google SecOps”). Valide no SecOps antes de ativar.</div></div></div>
+{% elif spec_json %}<div class="card" style="margin-top:16px"><div class="hd"><h3>Spec gerado</h3></div><div class="bd"><pre class="code tall">{{ spec_json }}</pre></div></div>{% endif %}
 {% endblock %}

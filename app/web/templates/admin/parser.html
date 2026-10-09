@@ -4,7 +4,10 @@
 <div class="card" style="margin-bottom:16px"><div class="bd row">
   <div style="flex:1"><div class="sm muted mono">{{ p.slug }} · {{ 'entrada' if p.kind == 'input' else 'saída' }} · {{ {'builtin':'embutido','studio':'Estúdio IA','manual':'editado'}[p.origin] }}</div>
   <div>{% if p.basis == 'real' %}<span class="tag g">feito com amostra real</span>{% else %}<span class="tag">feito pela documentação — validar com dado real</span>{% endif %} <span class="st {{ 'ok' if p.active else 'warn' }}">{{ 'ativo' if p.active else 'inativo' }}</span></div>
-  <div class="sm" style="margin-top:6px">{{ p.description }}</div></div>
+  <div class="sm" style="margin-top:6px">{{ p.description }}</div>
+  {% if secops %}<div class="row" style="margin-top:10px"><a class="btn o sm" href="{{ url_for('admin.parser_secops', pid=p.id) }}">⬇ Parser para o Google SecOps (CBN)</a><a class="sm" href="{{ url_for('admin.parser_secops_readme') }}">como importar no SecOps</a></div>
+  <div class="sm muted">Para quando o SecOps recebe os logs direto, sem o Trust Parser no meio: importe como parser personalizado do tipo de log.</div>
+  {% elif p.kind == 'input' %}<div class="sm" style="margin-top:10px"><a href="{{ url_for('admin.studio') }}">Gerar parser para o Google SecOps (CBN) no Estúdio IA →</a></div>{% endif %}</div>
   <form method="post" action="{{ url_for('admin.parser_action', pid=p.id) }}" class="inline-form">{{ csrf() }}<button class="btn o sm" name="action" value="{{ 'deactivate' if p.active else 'activate' }}" data-confirm-btn="{{ 'Desativar este parser? Fontes que dependem dele passam a ter linhas não reconhecidas.' if p.active else 'Ativar?' }}">{{ 'Desativar' if p.active else 'Ativar' }}</button></form>
 </div></div>
 <div class="grid g2">

@@ -5,8 +5,8 @@
 <div class="grid g2">
 <div class="card"><div class="hd"><h3>Novo pedido</h3></div><div class="bd">
 <form method="post" action="{{ url_for('admin.studio_new') }}" enctype="multipart/form-data">{{ csrf() }}
-  <div class="fg"><label class="f">O que você precisa</label><div class="row">{% for k, l in [('input','Novo formato de ENTRADA (parser)'),('output','Nova SAÍDA (formato/destino)'),('fix','Ajustar parser existente')] %}<label class="row" style="gap:6px"><input type="radio" name="kind" value="{{ k }}" {{ 'checked' if k == 'input' }}> {{ l }}</label>{% endfor %}</div></div>
-  <div class="fg" data-show-if="kind=fix"><label class="f">Parser a ajustar</label><select class="i" name="parser_id"><option value="">—</option>{% for p in inputs %}<option value="{{ p.id }}">{{ p.vendor }} · {{ p.name }}</option>{% endfor %}</select></div>
+  <div class="fg"><label class="f">O que você precisa</label><div class="row">{% for k, l in [('input','Novo formato de ENTRADA (parser)'),('output','Nova SAÍDA (formato/destino)'),('fix','Ajustar parser existente'),('secops','Parser para o Google SecOps (CBN)')] %}<label class="row" style="gap:6px"><input type="radio" name="kind" value="{{ k }}" {{ 'checked' if k == 'input' }}> {{ l }}</label>{% endfor %}</div></div>
+  <div class="fg" data-show-if="kind=fix|secops"><label class="f">Parser de entrada (a ajustar ou a converter para o SecOps)</label><select class="i" name="parser_id"><option value="">—</option>{% for p in inputs %}<option value="{{ p.id }}">{{ p.vendor }} · {{ p.name }}</option>{% endfor %}</select></div>
   <div class="fg"><label class="f">Título *</label><input class="i" name="title" required maxlength="200" placeholder="Ex.: Fortinet FortiGate — traffic log · ou · Splunk HEC"></div>
   <div class="two"><div class="fg"><label class="f">Fabricante / destino</label><input class="i" name="vendor" maxlength="80"></div><div class="fg"><label class="f">Produto</label><input class="i" name="product" maxlength="120"></div></div>
   <div class="fg" data-show-if="kind=input|fix"><label class="f">Amostras de log (uma por linha)</label><textarea class="i code" name="samples" rows="7" placeholder="Cole de 20 a 300 linhas reais, variadas"></textarea>
@@ -23,9 +23,9 @@
 </div></div>
 <div class="card"><div class="hd"><h3>Pedidos</h3><span class="sp"></span>{% if budget is not none %}<span class="sm muted">gasto: US$ {{ '%.2f'|format(spent) }} · restante no teto: US$ {{ '%.2f'|format(budget) }}</span>{% endif %}</div>
 <div class="tw"><table class="t"><tr><th>#</th><th>Pedido</th><th>Situação</th><th>Resultado</th></tr>
-{% for j in jobs %}<tr><td class="sm">{{ j.id }}</td><td><a href="{{ url_for('admin.studio_job', jid=j.id) }}"><b>{{ j.title }}</b></a><div class="sm muted">{{ {'input':'entrada','output':'saída','fix':'ajuste'}[j.kind] }} · {{ j.created_at|dt }} · {{ j.requested_by }}</div></td>
+{% for j in jobs %}<tr><td class="sm">{{ j.id }}</td><td><a href="{{ url_for('admin.studio_job', jid=j.id) }}"><b>{{ j.title }}</b></a><div class="sm muted">{{ {'input':'entrada','output':'saída','fix':'ajuste','secops':'SecOps (CBN)'}[j.kind] }} · {{ j.created_at|dt }} · {{ j.requested_by }}</div></td>
 <td><span class="st {{ {'done':'warn','approved':'ok','failed':'err','rejected':'','running':'warn','queued':'warn'}[j.status] }}">{{ {'queued':'na fila','running':'gerando…','done':'pronto p/ revisão','failed':'falhou','approved':'publicado','rejected':'descartado'}[j.status] }}</span></td>
-<td class="sm">{% if j.report.coverage is defined %}{{ j.report.coverage.pct }}% · testes {{ j.report.tests.passed }}/{{ j.report.tests.total }}{% elif j.report.rendered is defined %}{{ j.report.rendered|length }} exemplos{% else %}—{% endif %}</td></tr>
+<td class="sm">{% if j.report.coverage is defined %}{{ j.report.coverage.pct }}% · testes {{ j.report.tests.passed }}/{{ j.report.tests.total }}{% elif j.report.rendered is defined %}{{ j.report.rendered|length }} exemplos{% elif j.report.cbn_preview is defined %}{{ 'verificações ok' if not j.report.checks else (j.report.checks|length ~ ' alerta(s)') }}{% else %}—{% endif %}</td></tr>
 {% else %}<tr><td colspan="4" class="empty-state">Nenhum pedido ainda.</td></tr>{% endfor %}</table></div></div>
 </div>
 {% endblock %}

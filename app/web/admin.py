@@ -388,6 +388,7 @@ def parser(pid):
         audit.log("parser.preview", p.slug, actor=current_user, details={"lines": len(lines)}, ip=client_ip())
         Session.commit()
     return render_template("admin/parser.html", nav="parsers", p=p, versions=versions, cur=cur, view=view, preview=preview,
+                           secops=bool(p.kind == "input" and catalog.secops_cbn(p.slug)),
                            spec_json=json.dumps(view.spec, ensure_ascii=False, indent=1) if view else "",
                            tests_json=json.dumps(view.tests, ensure_ascii=False, indent=1) if view else "[]")
 
@@ -430,6 +431,23 @@ def parser_action(pid):
     except ServiceError as e:
         _fail(e)
     return redirect(url_for("admin.parser", pid=pid))
+
+
+@bp.get("/parsers/<int:pid>/secops.conf")
+def parser_secops(pid):
+    """Parser no formato do Google SecOps (CBN), para importar direto no SecOps quando ele recebe os logs sem o Trust Parser."""
+    p = Session.get(Parser, pid) or abort(404)
+    found = catalog.secops_cbn(p.slug) or abort(404)
+    audit.log("parser.secops_export", p.slug, actor=current_user, details={"version": found[1]}, ip=client_ip())
+    Session.commit()
+    return Response(found[0], mimetype="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="secops-parser-{p.slug}-v{found[1]}.conf"'})
+
+
+@bp.get("/parsers/secops-leia-me")
+def parser_secops_readme():
+    base = os.path.abspath(os.path.join(current_app.root_path, "..", "deploy", "secops", "LEIA-ME.md"))
+    return send_file(base, as_attachment=True, download_name="secops-parsers-LEIA-ME.md", mimetype="text/markdown")
 
 
 # ------------------------------------------------------------------------------------------------ uploads

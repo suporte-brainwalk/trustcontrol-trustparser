@@ -94,6 +94,10 @@ def parse(uid: str, raw: bytes) -> Incoming:
         fname = _dec(part.get_filename() or "")
         payload = part.get_payload(decode=True) or b""
         if ctype in IMAGE_TYPES:
+            # capturas que a própria EVA enviou (tela0-…, captura0antes-…) voltam citadas nas respostas: não são do cliente
+            cid = (part.get("Content-ID") or "").strip("<> ").lower()
+            if re.match(r"^(tela|captura)\d", fname.lower()) or re.match(r"^(tela|captura)\d", cid):
+                continue
             if len(payload) <= MAX_IMAGE_BYTES and len(images) < MAX_IMAGES:
                 digest = hashlib.sha1(payload).hexdigest()[:10]
                 images.append((f"imagem-{len(images) + 1}-{digest}{IMAGE_TYPES[ctype]}", payload))
@@ -268,6 +272,36 @@ def save_request_files(base_dir: str, inc: Incoming) -> dict:
     return {"images": names, "image_info": info, "other_attachments": inc.other_attachments}
 
 
+def _vision_describe(path: str) -> str:
+    """Descrição curta do conteúdo da imagem (a IA do agente não recebe imagens; aqui vai como mensagem do usuário, que o
+    provedor aceita). Provedor com retenção zero. Falha → vazio (a descrição técnica continua valendo)."""
+    import base64
+    import json as _json
+    import urllib.request
+    try:
+        from . import config
+        key = config.openrouter_key()
+        if not key:
+            return ""
+        with open(path, "rb") as fh:
+            data = fh.read()
+        if len(data) > 4_000_000:
+            return ""
+        ext = os.path.splitext(path)[1].lower().strip(".").replace("jpg", "jpeg")
+        body = {"model": config.ai_model(), "max_tokens": 3000, "provider": {"zdr": True},
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": "Descreva objetivamente esta imagem em português, em até 6 frases: que tela/sistema é, o que mostra "
+                                             "e textos/mensagens de erro visíveis relevantes. Não transcreva senhas, tokens ou chaves."},
+                    {"type": "image_url", "image_url": {"url": f"data:image/{ext};base64,{base64.b64encode(data).decode()}"}}]}]}
+        req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", _json.dumps(body).encode(),
+                                     {"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            txt = (_json.load(r)["choices"][0]["message"]["content"] or "").strip()
+        return re.sub(r"\s+", " ", txt)[:1200]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def describe_image(base_dir: str, name: str) -> str:
     """Descrição em texto da imagem (o serviço de IA não recebe imagens): formato, tamanho, transparência e, se não for
     PNG, uma cópia convertida para PNG ao lado (para o agente usar o arquivo sem precisar abri-lo)."""
@@ -279,6 +313,9 @@ def describe_image(base_dir: str, name: str) -> str:
             transp = "sim" if (mode in ("RGBA", "LA") or "transparency" in im.info) else "não"
             frames = getattr(im, "n_frames", 1)
             desc = f"{fmt}, {w}x{h} px, modo {mode}, fundo transparente: {transp}" + (f", {frames} quadros (animada)" if frames > 1 else "")
+            vision = _vision_describe(path)
+            if vision:
+                desc += f"; conteúdo: {vision}"
             if fmt != "PNG":
                 png = os.path.splitext(name)[0] + ".convertida.png"
                 im.seek(0)

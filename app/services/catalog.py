@@ -116,7 +116,7 @@ def publish(v: ParserVersion, by: str) -> Outcome:
         if rep["failures"]:
             raise ServiceError(f"A versão {v.version} tem {len(rep['failures'])} teste(s) com falha; corrija antes de publicar.")
         v.report = {**(v.report or {}), "tests": rep}
-    elif v.spec.get("builtin") is None:
+    elif v.spec.get("builtin") is None and "cbn" not in v.spec:
         errs = []
         try:
             formats.custom(v.spec, _sample_event(), "linha de teste", {"tenant": "teste"})
@@ -175,6 +175,23 @@ def seed(by: str = "implantação") -> dict:
                 updated += 1
             except ServiceError:
                 v.status = "rejected"
+    sec_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "deploy", "secops")
+    for path in sorted(glob.glob(os.path.join(sec_dir, "*.conf"))):
+        src_slug = os.path.basename(path)[:-5]
+        cbn = open(path, encoding="utf-8").read()
+        slug = f"secops-{src_slug}"[:80]
+        p = Session.execute(select(Parser).where(Parser.slug == slug)).scalar_one_or_none()
+        spec = {"cbn": cbn, "for_parser": src_slug, "log_type": "NGINX" if "nginx" in src_slug else ""}
+        if p is None:
+            p = Parser(kind="output", slug=slug, name=f"Google SecOps (CBN) · {src_slug}", vendor="Google", product="SecOps", origin="builtin",
+                       basis="real", description="Parser personalizado do Google SecOps, para quando o SecOps recebe os logs direto (sem o Trust Parser).")
+            Session.add(p)
+            Session.flush()
+        if p.origin == "builtin":
+            cur = Session.get(ParserVersion, p.current_version_id) if p.current_version_id else None
+            if cur is None or cur.spec.get("cbn") != cbn:
+                publish(add_version(p, spec, [], by=by, notes="Versão embutida"), by)
+                created += 1
     for code, name in formats.BUILTIN.items():
         p = Session.execute(select(Parser).where(Parser.slug == code)).scalar_one_or_none()
         if p is None:
@@ -234,7 +251,17 @@ def output_spec(code: str) -> dict | None:
 
 def output_choices() -> list[tuple[str, str]]:
     _load()
-    return [(slug, it["name"]) for slug, it in sorted(_cache["outputs"].items(), key=lambda x: (x[0] not in formats.BUILTIN, x[1]["name"]))]
+    return [(slug, it["name"]) for slug, it in sorted(_cache["outputs"].items(), key=lambda x: (x[0] not in formats.BUILTIN, x[1]["name"]))
+            if "cbn" not in it["spec"]]  # parsers para o SecOps não são formatos de destino
+
+
+def secops_cbn(input_slug: str) -> tuple[str, int] | None:
+    """Parser do Google SecOps (CBN) publicado para um parser de entrada: (conteúdo, versão) ou None."""
+    p = Session.execute(select(Parser).where(Parser.slug == f"secops-{input_slug}"[:80])).scalar_one_or_none()
+    if p is None or not p.current_version_id:
+        return None
+    v = Session.get(ParserVersion, p.current_version_id)
+    return (v.spec.get("cbn"), v.version) if v and v.spec.get("cbn") else None
 
 
 def parse_line(raw: str, meta: dict | None = None, parser_id: int | None = None) -> tuple[dict, int]:

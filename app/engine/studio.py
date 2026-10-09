@@ -197,6 +197,9 @@ def generate(job: StudioJob):
     if job.kind == "output":
         _generate_output(job, docs, usage_total)
         return
+    if job.kind == "secops":
+        _generate_secops(job, usage_total)
+        return
     current = None
     if job.kind == "fix" and job.parser_id:
         p = Session.get(Parser, job.parser_id)
@@ -318,13 +321,13 @@ def _generate_output(job: StudioJob, docs: str, usage_total: dict):
 def create_job(*, kind: str, title: str, vendor: str = "", product: str = "", request: str = "", samples: str = "", docs: str = "",
                docs_urls=None, mask: bool = True, mask_terms: str = "", parser_id=None, by: str = "") -> StudioJob:
     from ..services.changes import ServiceError
-    if kind not in ("input", "output", "fix"):
+    if kind not in ("input", "output", "fix", "secops"):
         raise ServiceError("Tipo de pedido inválido.")
     title = (title or "").strip()[:200]
     if not title:
         raise ServiceError("Dê um título ao pedido.")
-    if kind == "fix" and not parser_id:
-        raise ServiceError("Escolha o parser a ajustar.")
+    if kind in ("fix", "secops") and not parser_id:
+        raise ServiceError("Escolha o parser de entrada.")
     if kind in ("input", "fix") and not (samples.strip() or docs.strip() or docs_urls):
         raise ServiceError("Envie amostras de log e/ou a documentação do formato.")
     urls = [u.strip() for u in (docs_urls or []) if u and u.strip()][:5]
@@ -337,3 +340,104 @@ def create_job(*, kind: str, title: str, vendor: str = "", product: str = "", re
     Session.add(job)
     Session.flush()
     return job
+
+
+# ------------------------------------------------------------------------------------------------ parser para o Google SecOps (CBN)
+SYSTEM_SECOPS = """Você é engenheiro(a) de parsers do Google SecOps (Chronicle). Escreva um PARSER PERSONALIZADO no padrão do SecOps
+(CBN — sintaxe tipo Logstash: filter { grok/kv/json/date/mutate ... }) que produza, para cada linha de exemplo, o evento UDM esperado
+(fornecido). Regras do CBN que você deve seguir:
+- Comece com "filter {" e termine com "}". Inicialize com mutate { replace => { "campo" => "" } } todo campo usado depois em condições.
+- grok: match => { "message" => [ "padrão" ] }, overwrite => [...], on_error => "flag". Barras invertidas dobradas dentro das aspas.
+- Datas: date { match => ["campo", "formato Joda"] target => "event.idm.read_only_udm.metadata.event_timestamp" on_error => "x" }.
+- Campos escalares: mutate { replace => { "event.idm.read_only_udm.<caminho>" => "%{campo}" } } (só se o campo não estiver vazio).
+- Números: mutate { convert => { "campo" => "integer|uinteger" } } e depois rename para o caminho UDM.
+- Campos repetidos (ip, intermediary, additional.fields): mutate { merge => { "event.idm.read_only_udm.principal.ip" => "campo" } };
+  Noun repetido (intermediary): monte "obj.ip" e faça merge de "obj" em "event.idm.read_only_udm.intermediary".
+- additional.fields: rótulo com .key e .value.string_value e merge.
+- Sempre defina metadata.event_type, vendor_name, product_name. Termine com mutate { merge => { "@output" => "event" } }.
+- Use if [campo] != "" { ... } para não gravar vazio. Linha que não casar: drop { tag => "TAG_MALFORMED_MESSAGE" }.
+Responda SOMENTE JSON: {"cbn": "código completo", "log_type_sugerido": "tipo de log do SecOps (ex.: NGINX)", "notes": "observações em pt-BR"}."""
+
+
+def _secops_checks(cbn: str) -> list[str]:
+    probs = []
+    t = cbn.strip()
+    if not t.startswith(("filter", "#")) or "filter {" not in t:
+        probs.append("o parser precisa começar com 'filter {'")
+    if t.count("{") != t.count("}"):
+        probs.append(f"chaves desbalanceadas ({t.count('{')} '{{' vs {t.count('}')} '}}')")
+    if '"@output" => "event"' not in t:
+        probs.append("falta o merge final de 'event' em '@output'")
+    if "event.idm.read_only_udm.metadata.event_type" not in t:
+        probs.append("falta definir metadata.event_type")
+    for i, ln in enumerate(t.splitlines(), 1):
+        if ln.lstrip().startswith("#"):
+            continue
+        if len(re.findall(r'(?<!\\)"', ln)) % 2:
+            probs.append(f"linha {i}: aspas desbalanceadas")
+            break
+    return probs
+
+
+def _generate_secops(job: StudioJob, usage_total: dict):
+    src = Session.get(Parser, job.parser_id)
+    if src is None or src.kind != "input" or not src.current_version_id:
+        raise ai.AIError("parser de entrada inválido ou sem versão publicada")
+    v = Session.get(ParserVersion, src.current_version_id)
+    # exemplos = SOMENTE as linhas de teste do parser (anonimizadas/mascaradas) — nunca dados do buffer
+    lines = [t.get("input", "") for t in (v.tests or []) if t.get("input")][:20]
+    if not lines:
+        raise ai.AIError("o parser não tem linhas de teste para servir de exemplo")
+    examples = []
+    for ln in lines:
+        try:
+            ev = dsl.parse(v.spec, ln)
+            examples.append({"linha": ln, "udm_esperado": formats.to_udm(ev, ln, {})})
+        except (dsl.ParseError, dsl.SpecError):
+            continue
+    ref = _read("deploy/secops/nginx-access-pipe.conf")
+    msgs = [{"role": "system", "content": SYSTEM_SECOPS},
+            {"role": "user", "content": f"## Exemplo de parser CBN aprovado (Nginx)\n{ref}\n\n## Parser do Trust Parser a converter (lógica de extração)\n"
+                                        f"{json.dumps(v.spec, ensure_ascii=False)}\n\n## Linhas e UDM esperado\n"
+                                        + "\n".join(json.dumps(e, ensure_ascii=False) for e in examples)
+                                        + (f"\n\n## Observações do pedido\n{job.request}" if job.request else "")}]
+    best = None
+    for rnd in range(1, ROUNDS + 1):
+        _log(job, f"Rodada {rnd}: gerando o parser CBN…")
+        text, usage = ai.chat(msgs)
+        usage_total["cost"] += usage["cost"]
+        usage_total["calls"] += 1
+        job.ai_model = usage.get("model", "")[:80]
+        try:
+            out = ai.parse_json(text)
+        except ai.AIError as e:
+            msgs += [{"role": "assistant", "content": text[:20000]}, {"role": "user", "content": f"Resposta inválida: {e}. Devolva só o JSON."}]
+            continue
+        cbn = str(out.get("cbn") or "")
+        probs = _secops_checks(cbn)
+        _log(job, f"Rodada {rnd}: verificações {'ok' if not probs else '; '.join(probs)}")
+        if best is None or len(probs) < len(best[1]):
+            best = (cbn, probs, out)
+        if not probs:
+            break
+        msgs += [{"role": "assistant", "content": text[:30000]}, {"role": "user", "content": "Corrija e devolva o JSON completo: " + "; ".join(probs)}]
+    job.ai_calls, job.ai_cost_usd = usage_total["calls"], round(usage_total["cost"], 5)
+    if best is None or not best[0]:
+        raise ai.AIError("a IA não produziu um parser CBN")
+    cbn, probs, out = best
+    slug = f"secops-{src.slug}"[:80]
+    p = Session.execute(select(Parser).where(Parser.slug == slug)).scalar_one_or_none()
+    if p is None:
+        p = catalog.create_parser(kind="output", slug=slug, name=f"Google SecOps (CBN) · {src.name}"[:160], vendor="Google",
+                                  product="SecOps", description=f"Parser personalizado do Google SecOps equivalente a “{src.name}”, "
+                                  "para quando o SecOps recebe os logs direto (sem o Trust Parser).", origin="studio", basis=src.basis)
+    header = (f"# Google SecOps (CBN) — gerado pelo Trust Parser a partir de {src.slug} v{v.version}. Tipo de log sugerido: "
+              f"{out.get('log_type_sugerido') or '-'}.\n# Antes de ativar, use Validate/Preview no SecOps com linhas reais.\n")
+    nv = catalog.add_version(p, {"cbn": header + cbn, "for_parser": src.slug, "for_version": v.version,
+                                 "log_type": str(out.get("log_type_sugerido") or "")[:60]}, [], by=f"Estúdio IA (pedido #{job.id})",
+                             notes=str(out.get("notes", ""))[:2000], studio_job_id=job.id, report={"checks": probs})
+    job.parser_id, job.result_version_id = p.id, nv.id
+    job.report = {**(job.report or {}), "checks": probs, "cbn_preview": (header + cbn)[:6000], "notes": str(out.get("notes", ""))[:2000],
+                  "log_type": out.get("log_type_sugerido")}
+    job.status = "done"
+    _log(job, f"Concluído: parser CBN versão {nv.version} em rascunho")
