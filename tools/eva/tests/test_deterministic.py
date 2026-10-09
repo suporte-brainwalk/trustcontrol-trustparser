@@ -650,3 +650,19 @@ def test_maintenance_ops_match_the_agent_schema_and_dates():
     for bad in ("2099-12-31", "31/12/2000"):
         with pytest.raises(m.MaintError):
             m.parse_date_br(bad)
+
+
+# ---------------- acompanhamento automático dos pedidos ao Estúdio IA
+def test_estudio_aviso_por_situacao():
+    from orchestrator import studio_watch as sw
+    base = {"id": 7, "kind": "secops", "title": "Google SecOps (CBN) · WithSecure", "error": "", "parser_id": 10, "parser_name": "WithSecure"}
+    assert sw.decide({**base, "status": "running"}, requester_admin=True) is None
+    assert sw.decide({**base, "status": "queued"}, requester_admin=True) is None
+    pronto = sw.decide({**base, "status": "done"}, requester_admin=True)
+    assert pronto["state"] == "aguardando_trust" and "/admin/estudio/7" in pronto["pending"][0]
+    assert sw.decide({**base, "status": "done"}, requester_admin=False)["state"] == "aguardando_rogerio"
+    pub = sw.decide({**base, "status": "approved"}, requester_admin=True)
+    assert pub["state"] == "concluido" and pub["pending"] == [] and any("/admin/parsers/10/secops.conf" in s for s in pub["passo_a_passo"])
+    falha = sw.decide({**base, "status": "failed", "error": "HTTP 504"}, requester_admin=True)
+    assert falha["state"] == "aguardando_rogerio" and "504" in falha["pending"][0]
+    assert sw.decide({**base, "status": "rejected"}, requester_admin=True)["state"] == "concluido"

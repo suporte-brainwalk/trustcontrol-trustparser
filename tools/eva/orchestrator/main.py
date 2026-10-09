@@ -1,4 +1,4 @@
-"""Processo principal da EVA: laços determinísticos de leitura da caixa, fila de pedidos, heartbeat e lembretes."""
+"""Processo principal da EVA: laços determinísticos de leitura da caixa, fila de pedidos, heartbeat, lembretes e acompanhamento do Estúdio IA."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import config, inbox, monitor, pipeline, store
+from . import config, inbox, monitor, pipeline, store, studio_watch
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='{"t":"%(asctime)s","lvl":"%(levelname)s","log":"%(name)s","msg":"%(message)s"}')
 log = logging.getLogger("eva")
@@ -69,7 +69,8 @@ def main():
 
     threads = [threading.Thread(target=loop, args=("caixa", config.POLL_SECONDS, poll), daemon=True),
                threading.Thread(target=loop, args=("fila", 5, work), daemon=True),
-               threading.Thread(target=loop, args=("lembretes", 600, pipeline.reminders), daemon=True)]
+               threading.Thread(target=loop, args=("lembretes", 600, pipeline.reminders), daemon=True),
+               threading.Thread(target=loop, args=("estudio", 120, studio_watch.tick), daemon=True)]
     for t in threads:
         t.start()
     log.info("EVA iniciada (modo %s)", store.get_setting("eva_mode"))

@@ -145,6 +145,10 @@ def _log(job: StudioJob, msg: str):
     Session.commit()  # andamento visível na tela enquanto a IA trabalha
 
 
+AUTO_RETRIES = 2
+TRANSIENT = re.compile(r"indisponível|falha de conexão|interrompeu|resposta vazia|cortada")
+
+
 def run_next() -> bool:
     job = Session.execute(select(StudioJob).where(StudioJob.status == "queued").order_by(StudioJob.id).limit(1)
                           .with_for_update(skip_locked=True)).scalar_one_or_none()
@@ -158,6 +162,14 @@ def run_next() -> bool:
     except ai.AIError as e:
         Session.rollback()
         job = Session.get(StudioJob, job.id)
+        tries = int((job.report or {}).get("auto_retries") or 0)
+        if TRANSIENT.search(str(e)) and tries < AUTO_RETRIES:
+            # falha passageira do provedor (504, conexão, resposta vazia): volta para a fila sem depender de ninguém
+            job.status, job.started_at = "queued", None
+            job.report = {**(job.report or {}), "auto_retries": tries + 1}
+            _log(job, f"Falha temporária do serviço de IA ({e}); nova tentativa automática {tries + 1}/{AUTO_RETRIES}")
+            Session.commit()
+            return True
         job.status, job.error = "failed", str(e)[:1000]
         _log(job, f"Falhou: {e}")
     except Exception as e:  # noqa: BLE001
