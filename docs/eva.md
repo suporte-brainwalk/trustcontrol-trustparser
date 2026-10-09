@@ -143,6 +143,12 @@ Cada conversa tem um estado: em andamento, concluída, aguardando time Trust, ag
 em 2 dias úteis, a EVA manda um lembrete gentil, no máximo 2. Depois disso a conversa fica parada e o suporte é avisado.
 Na tela EVA dá para encerrar uma conversa ou parar os lembretes.
 
+**Pedidos ao Estúdio IA** (`orchestrator/studio_watch.py`, a cada 120 s, sem IA): quando a EVA abre um pedido no Estúdio,
+ela avisa sozinha na mesma conversa (Rogério em cópia) quando o rascunho fica pronto para revisão, quando é publicado (com
+o link do download, no caso do parser CBN para o SecOps), descartado ou se falhar, e ajusta as pendências. Falhas
+passageiras do provedor (504, conexão, resposta vazia) são repetidas pelo próprio Estúdio até 2 vezes antes de virar falha.
+Acompanhamento guardado em `settings.eva_studio_track` (`studio_watch.follow()` inclui um pedido refeito à mão).
+
 ## Operação
 | Item | Onde |
 |---|---|
